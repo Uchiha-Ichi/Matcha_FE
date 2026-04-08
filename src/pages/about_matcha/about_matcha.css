@@ -1,0 +1,337 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+
+.about-matcha-page {
+  --font-ui: 'Manrope', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --mint: #c7f6c6;
+  --ink: #112031;
+  --line-soft: rgba(17, 32, 49, 0.12);
+  --glass: rgba(255, 255, 255, 0.72);
+  min-height: 100vh;
+  background: linear-gradient(180deg, #fffdf9 0%, #fff8f1 100%);
+  color: #4c4841;
+  font-family: var(--font-ui);
+}
+
+.about-matcha-page .top-nav {
+  position: sticky;
+  background: rgba(255, 252, 247, 0.88);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(237, 225, 210, 0.92);
+}
+
+.about-matcha-page .brand-text,
+.about-matcha-page .menu-links a,
+.about-matcha-page .nav-icon-btn {
+  color: #2f2a25;
+}
+
+.about-matcha-page .nav-icon-btn {
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(229, 215, 198, 0.9);
+}
+
+.about-matcha-page .nav-avatar-btn {
+  border-color: rgba(229, 215, 198, 0.9);
+}
+
+.about-hero,
+.about-story {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 52px 32px 0;
+}
+
+.about-hero {
+  padding-top: 72px;
+}
+
+.about-hero-grid {
+  display: grid;
+  grid-template-columns: 0.95fr 1.15fr;
+  gap: 28px;
+  align-items: center;
+}
+
+.about-portrait-card,
+.about-intro-card,
+.story-copy,
+.story-photo-card,
+.category-card {
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid #efe3d6;
+  box-shadow: 0 20px 55px rgba(109, 80, 42, 0.08);
+}
+
+.portrait-surface {
+  padding: 18px;
+}
+
+.portrait-photo {
+  min-height: 420px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 68% 28%, rgba(255, 255, 255, 0.5), transparent 18%),
+    linear-gradient(140deg, #f4d4c7 0%, #f9d79e 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.portrait-photo::before,
+.portrait-photo::after {
+  content: '';
+  position: absolute;
+  border-radius: 999px;
+}
+
+.portrait-photo::before {
+  width: 210px;
+  height: 210px;
+  left: 52px;
+  top: 68px;
+  background: #6f432d;
+  box-shadow:
+    0 155px 0 -60px #f9bb7a,
+    50px 120px 0 -40px #f4c044;
+}
+
+.portrait-photo::after {
+  width: 104px;
+  height: 104px;
+  right: 42px;
+  top: 72px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.about-intro-card {
+  padding: 36px 34px;
+}
+
+.about-kicker {
+  margin: 0;
+  color: #ff8a35;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.about-intro-card h1 {
+  margin: 8px 0 18px;
+  color: #ff8a35;
+  font-size: clamp(34px, 4vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+}
+
+.about-intro-card p {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: #686259;
+}
+
+.about-intro-card button,
+.about-cta {
+  margin-top: 8px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ff8b38, #ff6e1b);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 14px 24px;
+  cursor: pointer;
+  box-shadow: 0 18px 34px rgba(255, 123, 48, 0.25);
+}
+
+.about-quote {
+  text-align: center;
+  padding: 44px 0 10px;
+}
+
+.quote-mark {
+  display: block;
+  color: #ff8a35;
+  font-size: 62px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.about-quote p {
+  margin: -8px 0 0;
+  color: #ff8a35;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.about-story h2{
+  margin: 0 0 28px;
+  color: #ff8a35;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.1;
+}
+
+.story-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.92fr;
+  gap: 24px;
+}
+
+.story-copy {
+  padding: 28px;
+}
+
+.story-copy p {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: #696359;
+}
+
+.story-photo-card {
+  padding: 16px;
+}
+
+.story-photo {
+  min-height: 100%;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 70% 18%, rgba(255, 217, 158, 0.75), transparent 18%),
+    linear-gradient(145deg, #ffd3b1, #ffb56f);
+  position: relative;
+  overflow: hidden;
+}
+
+.story-photo::before,
+.story-photo::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(120, 75, 20, 0.12);
+}
+
+.story-photo::before {
+  width: 70%;
+  height: 18%;
+  left: 14%;
+  top: 18%;
+  transform: rotate(-6deg);
+}
+
+.story-photo::after {
+  width: 58%;
+  height: 18%;
+  right: 12%;
+  bottom: 18%;
+  transform: rotate(8deg);
+}
+
+
+.category-card {
+  padding: 14px;
+  position: relative;
+}
+
+.category-index {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #ff7d28;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  z-index: 1;
+}
+
+.category-cover {
+  height: 180px;
+  border-radius: 20px;
+  margin-bottom: 16px;
+}
+
+.tone-peach .category-cover {
+  background: linear-gradient(140deg, #ffd6bd, #ffb47e);
+}
+
+.tone-amber .category-cover {
+  background: linear-gradient(140deg, #ffdfb8, #ff9d52);
+}
+
+.tone-green .category-cover {
+  background: linear-gradient(140deg, #d9f0cb, #93c47d);
+}
+
+.tone-blue .category-cover {
+  background: linear-gradient(140deg, #d8e9ff, #88b8f9);
+}
+
+.tone-rose .category-cover {
+  background: linear-gradient(140deg, #ffd1dc, #f58bac);
+}
+
+.tone-mint .category-cover {
+  background: linear-gradient(140deg, #d2f6ee, #83d8bf);
+}
+
+.category-content {
+  padding: 0 6px 8px;
+}
+
+.category-content h3 {
+  margin: 0 0 8px;
+  color: #ff7d28;
+  font-size: 21px;
+}
+
+.category-content p {
+  margin: 0;
+  color: #6d665c;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.about-cta {
+  display: block;
+  margin: 34px auto 0;
+}
+
+.about-matcha-page .home-footer {
+  margin-top: 70px;
+}
+
+@media (max-width: 960px) {
+  .about-hero-grid,
+  .story-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .about-hero,
+  .about-story {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .about-hero {
+    padding-top: 32px;
+  }
+
+  .about-intro-card,
+  .story-copy {
+    padding: 24px 20px;
+  }
+
+  .portrait-photo {
+    min-height: 320px;
+  }
+
+  .about-quote p {
+    font-size: 22px;
+  }
+}

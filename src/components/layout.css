@@ -1,0 +1,199 @@
+.top-nav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 42px;
+  z-index: 5;
+  background: linear-gradient(180deg, rgba(7, 13, 19, 0.34), rgba(7, 13, 19, 0));
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.brand-camera {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--mint);
+  color: #1d3124;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+}
+
+.brand-camera svg {
+  width: 19px;
+  height: 19px;
+}
+
+.brand-text {
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  text-transform: uppercase;
+}
+
+.menu-links {
+  display: flex;
+  gap: 42px;
+}
+
+.menu-links a {
+  color: rgba(255, 255, 255, 0.94);
+  text-decoration: none;
+  font-size: 17px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  transition:
+    opacity 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.menu-links a:hover {
+  color: var(--mint);
+  transform: translateY(-1px);
+}
+
+.menu-links .menu-link-active {
+  color: var(--mint);
+}
+
+.menu-icons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-icon-btn {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  color: #ffffff;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.nav-icon-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(199, 246, 198, 0.55);
+  background: rgba(199, 246, 198, 0.16);
+}
+
+.nav-icon-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
+.nav-avatar-btn {
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.nav-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-footer {
+  margin-top: 0;
+  border-top: 1px solid #e9dfd1;
+  padding: 34px 24px 44px;
+  text-align: center;
+  color: #868076;
+  background: #f7f3eb;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.footer-links a {
+  color: #6f695f;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.home-footer p {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+@media (min-width: 1600px) {
+  .top-nav {
+    padding: 0 54px;
+  }
+
+  .brand-text {
+    font-size: 28px;
+  }
+
+  .brand-camera {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 840px) {
+  .top-nav {
+    height: 74px;
+    padding: 0 16px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-camera {
+    width: 30px;
+    height: 30px;
+  }
+
+  .brand-camera svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .brand-text {
+    font-size: 22px;
+  }
+
+  .menu-links {
+    display: none;
+  }
+
+  .menu-icons {
+    gap: 8px;
+  }
+
+  .nav-icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+}
