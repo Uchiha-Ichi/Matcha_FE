@@ -49,7 +49,7 @@ function Login({ closeHref = '/' }) {
       role: isRegister && isPartner ? 'Partner' : 'Customer',
     })
 
-    navigateTo('/profile')
+    navigateTo(isRegister && isPartner ? '/partner-setup' : '/profile')
   }
 
   return (

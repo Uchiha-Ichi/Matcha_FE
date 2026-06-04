@@ -87,6 +87,14 @@ function Profile() {
             <span className="profile-card__role">{profile.role}</span>
 
             <div className="profile-card__actions">
+              {profile.role === 'Partner' && (
+                <a
+                  href="/partner-dashboard"
+                  onClick={(event) => navigate(event, '/partner-dashboard')}
+                >
+                  Dashboard đối tác
+                </a>
+              )}
               <a href="/order-history" onClick={(event) => navigate(event, '/order-history')}>
                 Lịch sử đơn hàng
               </a>

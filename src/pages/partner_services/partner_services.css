@@ -1,0 +1,124 @@
+.partner-services-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+}
+
+.partner-service-management-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.partner-service-manage-card,
+.partner-service-form {
+  border: 1px solid #ddd1c4;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 18px 34px rgba(110, 83, 43, 0.08);
+}
+
+.partner-service-manage-card {
+  padding: 18px;
+}
+
+.partner-service-manage-card > span,
+.partner-service-form > span {
+  color: #8b735f;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.partner-service-manage-card h2,
+.partner-service-form h2 {
+  margin: 10px 0 0;
+  color: #171411;
+  font-size: 22px;
+}
+
+.partner-service-manage-card p {
+  margin: 8px 0 0;
+  color: #6f6257;
+  font-size: 14px;
+}
+
+.partner-service-manage-card strong {
+  display: block;
+  margin-top: 16px;
+  color: #009b72;
+  font-size: 18px;
+}
+
+.partner-service-manage-card div {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.partner-service-manage-card button,
+.partner-service-form button {
+  min-height: 42px;
+  border-radius: 999px;
+  border: none;
+  background: #1f1713;
+  color: #fff;
+  padding: 0 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.partner-service-manage-card button:last-child {
+  border: 1px solid #ded2c3;
+  background: #fff;
+  color: #171411;
+}
+
+.partner-service-form {
+  align-self: start;
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.partner-service-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.partner-service-form label span {
+  color: #735f52;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.partner-service-form input,
+.partner-service-form select,
+.partner-service-form textarea {
+  width: 100%;
+  border: 1px solid #e2d7c9;
+  border-radius: 16px;
+  background: #fcfaf6;
+  color: #171411;
+  padding: 0 13px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.partner-service-form input,
+.partner-service-form select {
+  min-height: 46px;
+}
+
+.partner-service-form textarea {
+  min-height: 100px;
+  padding-top: 12px;
+  resize: vertical;
+}
+
+@media (max-width: 960px) {
+  .partner-services-layout,
+  .partner-service-management-grid {
+    grid-template-columns: 1fr;
+  }
+}
