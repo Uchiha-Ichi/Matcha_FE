@@ -2,44 +2,6 @@ import Header from '../../components/Header.jsx'
 import Footer from '../../components/Footer.jsx'
 import './about_matcha.css'
 
-const categories = [
-  {
-    id: 1,
-    title: 'Cá nhân',
-    desc: 'Ghi lại chân dung nhẹ nhàng, thời trang hoặc profile chuyên nghiệp.',
-    tone: 'peach',
-  },
-  {
-    id: 2,
-    title: 'Cặp đôi',
-    desc: 'Lưu lại câu chuyện tình cảm theo phong cách tự nhiên và giàu cảm xúc.',
-    tone: 'amber',
-  },
-  {
-    id: 3,
-    title: 'Gia đình',
-    desc: 'Khoảnh khắc ấm áp, gần gũi để cả nhà luôn có kỷ niệm đẹp cùng nhau.',
-    tone: 'green',
-  },
-  {
-    id: 4,
-    title: 'Bạn bè',
-    desc: 'Những bộ ảnh vui tươi, trẻ trung để đánh dấu một giai đoạn thật đáng nhớ.',
-    tone: 'blue',
-  },
-  {
-    id: 5,
-    title: 'Kỷ yếu',
-    desc: 'Concept thanh xuân, đồng phục, trường lớp và những bức ảnh đầy năng lượng.',
-    tone: 'rose',
-  },
-  {
-    id: 6,
-    title: 'Sự kiện',
-    desc: 'Gói chụp linh hoạt cho workshop, khai trương, tiệc cưới hay các dịp đặc biệt.',
-    tone: 'mint',
-  },
-]
 
 function AboutMatcha() {
   return (
