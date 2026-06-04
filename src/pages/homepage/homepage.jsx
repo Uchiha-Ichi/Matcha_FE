@@ -36,6 +36,17 @@ const fixVnText = (text) => {
   }
 }
 
+const navigate = (event, path) => {
+  event.preventDefault()
+
+  if (window.location.pathname === path) {
+    return
+  }
+
+  window.history.pushState({}, '', path)
+  window.dispatchEvent(new PopStateEvent('popstate'))
+}
+
 function Homepage() {
   const partnerById = new Map(mockPartners.map((partner) => [partner.id, partner]))
   const conceptById = new Map(mockConcepts.map((concept) => [concept.id, concept]))
@@ -117,7 +128,11 @@ function Homepage() {
                 <span className="search-upload-icon">⌘</span>
                 Tải ảnh
               </button>
-              <button className="search-submit-btn" type="button">
+              <button
+                className="search-submit-btn"
+                type="button"
+                onClick={(event) => navigate(event, '/ai-idea')}
+              >
                 Lên ý tưởng
               </button>
             </div>
@@ -160,7 +175,18 @@ function Homepage() {
 
           <div className="cards-grid">
             {serviceItems.map((service) => (
-              <article key={service.id} className="service-card">
+              <article
+                key={service.id}
+                className="service-card"
+                role="link"
+                tabIndex={0}
+                onClick={(event) => navigate(event, '/service-detail')}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    navigate(event, '/service-detail')
+                  }
+                }}
+              >
                 <div className="card-image-wrap">
                   <img src={service.image} alt={service.title} />
                   <span className="card-badge">{service.badge}</span>

@@ -311,6 +311,7 @@
   overflow: hidden;
   border: 1px solid rgba(213, 205, 191, 0.9);
   box-shadow: 0 20px 50px rgba(65, 49, 24, 0.08);
+  cursor: pointer;
   transition:
     transform 0.22s ease,
     box-shadow 0.22s ease,
@@ -321,6 +322,11 @@
   transform: translateY(-6px);
   box-shadow: 0 28px 60px rgba(65, 49, 24, 0.12);
   border-color: rgba(188, 178, 160, 0.9);
+}
+
+.service-card:focus-visible {
+  outline: 3px solid rgba(42, 155, 87, 0.3);
+  outline-offset: 4px;
 }
 
 .card-image-wrap {
