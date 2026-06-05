@@ -1,13 +1,8 @@
-import {
-  mockBookingDetails,
-  mockBookings,
-  mockConcepts,
-  mockPartnerConcepts,
-  mockPartners,
-  mockPayments,
-  mockUsers,
-} from '../../../mockdata.js'
+import { useEffect, useState } from 'react'
+import { getAuthUser } from '../../utils/auth.js'
+import { getBookings, getMyPartner, updateBookingStatus } from '../../utils/api.js'
 import { PartnerDashboardHeader } from '../partner_dashboard/partner_dashboard.jsx'
+import LoadingScreen from '../../components/LoadingScreen.jsx'
 import '../partner_dashboard/partner_dashboard.css'
 import './partner_bookings.css'
 
@@ -15,6 +10,7 @@ const statusMeta = {
   pending: { label: 'Chờ xác nhận', tone: 'warning' },
   confirmed: { label: 'Đã xác nhận', tone: 'info' },
   completed: { label: 'Hoàn tất', tone: 'success' },
+  cancelled: { label: 'Đã hủy', tone: 'muted' },
 }
 
 const paymentLabel = {
@@ -23,26 +19,23 @@ const paymentLabel = {
   unpaid: 'Chưa thanh toán',
 }
 
-const fixVnText = (text) => {
-  if (typeof text !== 'string') return text
+const formatPrice = (value) =>
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value ?? 0)
+
+const formatDateTime = (value) => {
+  if (!value) return '—'
   try {
-    return decodeURIComponent(escape(text))
+    return new Intl.DateTimeFormat('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value))
   } catch {
-    return text
+    return value
   }
 }
-
-const formatPrice = (value) =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
-
-const formatDateTime = (value) =>
-  new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value.replace(' ', 'T')))
 
 const navigate = (event, path) => {
   event.preventDefault()
@@ -50,39 +43,60 @@ const navigate = (event, path) => {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
-const buildBookingRows = () => {
-  const partner = mockPartners[0]
-  const userById = new Map(mockUsers.map((user) => [user.id, user]))
-  const detailByBookingId = new Map(mockBookingDetails.map((detail) => [detail.booking_id, detail]))
-  const partnerConceptById = new Map(mockPartnerConcepts.map((item) => [item.id, item]))
-  const conceptById = new Map(mockConcepts.map((concept) => [concept.id, concept]))
-  const paymentByBookingId = new Map(mockPayments.map((payment) => [payment.booking_id, payment]))
-
-  return {
-    partner: { ...partner, band_name: fixVnText(partner.band_name) },
-    bookings: mockBookings
-      .filter((booking) => booking.partner_id === partner.id)
-      .map((booking) => {
-        const detail = detailByBookingId.get(booking.id)
-        const partnerConcept = detail ? partnerConceptById.get(detail.partner_concept_id) : null
-        const concept = partnerConcept ? conceptById.get(partnerConcept.concept_id) : null
-        const customer = userById.get(booking.user_id)
-        const payment = paymentByBookingId.get(booking.id)
-
-        return {
-          ...booking,
-          code: `MTC-${String(booking.id).padStart(5, '0')}`,
-          customerName: fixVnText(customer?.full_name) ?? 'Khách hàng',
-          customerAvatar: customer?.avatar_src,
-          serviceName: fixVnText(concept?.name) ?? 'Dịch vụ',
-          paymentStatus: payment?.status ?? 'unpaid',
-        }
-      }),
-  }
+const STATUS_TRANSITIONS = {
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['completed', 'cancelled'],
 }
 
 function PartnerBookings() {
-  const { partner, bookings } = buildBookingRows()
+  const authUser = getAuthUser()
+  const [partner, setPartner] = useState(null)
+  const [bookings, setBookings] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [updatingId, setUpdatingId] = useState(null)
+  const [filterStatus, setFilterStatus] = useState('all')
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [myPartner, allBookings] = await Promise.all([
+          getMyPartner(),
+          getBookings(),
+        ])
+
+        setPartner(myPartner ?? null)
+
+        if (myPartner) {
+          const myBookings = (allBookings || [])
+            .filter((b) => b.partner?.id === myPartner.id || b.partner_id === myPartner.id)
+            .sort((a, b) => new Date(b.booking_time) - new Date(a.booking_time))
+          setBookings(myBookings)
+        }
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [authUser?.id])
+
+  const handleUpdateStatus = async (bookingId, newStatus) => {
+    setUpdatingId(bookingId)
+    try {
+      await updateBookingStatus(bookingId, newStatus)
+      setBookings((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, status: newStatus } : b)),
+      )
+    } catch (err) {
+      alert(`Cập nhật thất bại: ${err.message}`)
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const displayed = filterStatus === 'all' ? bookings : bookings.filter((b) => b.status === filterStatus)
 
   return (
     <main className="partner-dashboard-page">
@@ -95,29 +109,66 @@ function PartnerBookings() {
             <h1>Đơn đặt lịch</h1>
             <p>Quản lý trạng thái booking, thanh toán và trao đổi nhanh với khách hàng.</p>
           </div>
-          <button type="button">Tạo lịch thủ công</button>
         </div>
 
+        {/* Filter bar */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+          {['all', 'pending', 'confirmed', 'completed', 'cancelled'].map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setFilterStatus(s)}
+              style={{
+                padding: '0.4rem 1rem',
+                borderRadius: '999px',
+                border: '1.5px solid',
+                cursor: 'pointer',
+                fontWeight: filterStatus === s ? 700 : 400,
+                borderColor: filterStatus === s ? 'var(--color-primary, #5b3cf7)' : '#ddd',
+                background: filterStatus === s ? 'var(--color-primary, #5b3cf7)' : 'transparent',
+                color: filterStatus === s ? '#fff' : 'inherit',
+                transition: 'all 0.2s',
+              }}
+            >
+              {s === 'all'
+                ? 'Tất cả'
+                : (statusMeta[s]?.label ?? s)}
+            </button>
+          ))}
+        </div>
+
+        {loading && <LoadingScreen text="Đang tải dữ liệu..." />}
+        {error && <p style={{ color: 'crimson' }}>Lỗi: {error}</p>}
+
         <section className="partner-booking-table">
-          {bookings.map((booking) => {
+          {displayed.map((booking) => {
             const status = statusMeta[booking.status] ?? statusMeta.pending
+            const payment = booking.payments?.[0]
+            const paymentStatus = payment?.status ?? 'unpaid'
+            const conceptName =
+              booking.details?.[0]?.partner_concept?.concept?.name ?? 'Dịch vụ'
+            const code = `MTC-${String(booking.id).padStart(5, '0')}`
+            const transitions = STATUS_TRANSITIONS[booking.status] ?? []
 
             return (
               <article key={booking.id} className="partner-booking-row">
-                <img src={booking.customerAvatar} alt={booking.customerName} />
+                <img
+                  src={booking.user?.avatar ?? `https://i.pravatar.cc/80?u=${booking.id}`}
+                  alt={booking.user?.full_name ?? 'Khách hàng'}
+                />
                 <div>
-                  <span>{booking.code}</span>
-                  <strong>{booking.customerName}</strong>
-                  <p>{booking.serviceName}</p>
+                  <span>{code}</span>
+                  <strong>{booking.user?.full_name ?? 'Khách hàng'}</strong>
+                  <p>{conceptName}</p>
                 </div>
                 <div>
                   <span>Thời gian</span>
                   <strong>{formatDateTime(booking.booking_time)}</strong>
-                  <p>{paymentLabel[booking.paymentStatus]}</p>
+                  <p>{paymentLabel[paymentStatus]}</p>
                 </div>
                 <div>
                   <span>Giá trị</span>
-                  <strong>{formatPrice(booking.price - booking.price_discount)}</strong>
+                  <strong>{formatPrice(Number(booking.price) - Number(booking.price_discount))}</strong>
                   <p>Cọc {formatPrice(booking.price_deposit)}</p>
                 </div>
                 <div className="partner-booking-row__actions">
@@ -127,11 +178,32 @@ function PartnerBookings() {
                   <a href="/chat" onClick={(event) => navigate(event, '/chat')}>
                     Nhắn khách
                   </a>
-                  <button type="button">Cập nhật</button>
+                  {transitions.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      disabled={updatingId === booking.id}
+                      onClick={() => handleUpdateStatus(booking.id, t)}
+                      style={{
+                        background: t === 'cancelled' ? 'crimson' : undefined,
+                      }}
+                    >
+                      {updatingId === booking.id
+                        ? '…'
+                        : t === 'confirmed'
+                          ? 'Xác nhận'
+                          : t === 'completed'
+                            ? 'Hoàn thành'
+                            : 'Hủy đơn'}
+                    </button>
+                  ))}
                 </div>
               </article>
             )
           })}
+          {!loading && displayed.length === 0 && (
+            <p className="partner-empty-text">Không có đơn nào.</p>
+          )}
         </section>
       </section>
     </main>

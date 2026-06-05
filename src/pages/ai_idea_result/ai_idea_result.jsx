@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { generateAiIdea } from '../../utils/api.js'
+import LoadingScreen from '../../components/LoadingScreen.jsx'
 import './ai_idea_result.css'
 
 const moodboardSets = {
@@ -121,27 +122,7 @@ function AiIdeaResult() {
           <strong className="ai-idea-query">"{query}"</strong>
         </header>
 
-        <div className="ai-idea-shell" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center' }}>
-          <div style={{
-            width: '64px',
-            height: '64px',
-            border: '4px solid #eadfD2',
-            borderTopColor: '#009b72',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            marginBottom: '24px'
-          }} />
-          <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#1f1a16' }}>Matcha AI đang lên ý tưởng...</h2>
-          <p style={{ color: '#6f6257', marginTop: '8px', maxWidth: '440px', fontSize: '15px', lineHeight: '1.6' }}>
-            Chúng tôi đang phân tích ý tưởng của bạn, thiết kế concept, gợi ý trang phục, tạo dáng và lựa chọn ekip đối tác phù hợp nhất.
-          </p>
-
-          <style>{`
-            @keyframes spin {
-              to { transform: rotate(360deg); }
-            }
-          `}</style>
-        </div>
+        <LoadingScreen text="Matcha AI đang phân tích ý tưởng, thiết kế concept, gợi ý trang phục, tạo dáng và lựa chọn ekip đối tác phù hợp..." />
       </main>
     )
   }

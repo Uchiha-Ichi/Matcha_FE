@@ -1,13 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Header from '../../components/Header.jsx'
 import { getAuthUser } from '../../utils/auth.js'
-import { mockCategories } from '../../../mockdata.js'
+import { getCategories, getMyPartner, createPartner, updatePartner } from '../../utils/api.js'
 import './partner_setup.css'
 
-const PARTNER_DRAFT_KEY = 'matcha_partner_profile_draft'
-
-const defaultPartnerForm = {
-  categories_id: 1,
+const defaultForm = {
+  categories_id: '',
   band_name: '',
   description: '',
   location: '',
@@ -16,20 +14,8 @@ const defaultPartnerForm = {
   is_active: 1,
 }
 
-const fixVnText = (text) => {
-  if (typeof text !== 'string') return text
-  try {
-    return decodeURIComponent(escape(text))
-  } catch {
-    return text
-  }
-}
-
 const navigateTo = (path) => {
-  if (window.location.pathname === path) {
-    return
-  }
-
+  if (window.location.pathname === path) return
   window.history.pushState({}, '', path)
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
@@ -39,43 +25,61 @@ const navigate = (event, path) => {
   navigateTo(path)
 }
 
-const buildPartnerPayload = (form, authUser) => ({
-  user_id: authUser?.id ?? null,
-  categories_id: Number(form.categories_id),
-  band_name: form.band_name.trim(),
-  description: form.description.trim(),
-  location: form.location.trim(),
-  location_name: form.location_name.trim(),
-  is_active: Number(form.is_active),
-  cover_image: form.cover_image.trim(),
-})
-
 function PartnerSetup() {
   const authUser = getAuthUser()
-  const [form, setForm] = useState(defaultPartnerForm)
+  const [form, setForm] = useState(defaultForm)
+  const [categories, setCategories] = useState([])
   const [coverImageName, setCoverImageName] = useState('')
-  const [savedPayload, setSavedPayload] = useState(null)
+  const [existingPartner, setExistingPartner] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
+  const [error, setError] = useState(null)
 
-  const categories = useMemo(
-    () => mockCategories.filter((category) => category.is_active === 1),
-    [],
-  )
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [cats, mine] = await Promise.all([
+          getCategories(),
+          getMyPartner(),
+        ])
+
+        const activeCategories = (cats || []).filter((c) => c.is_active === 1 || c.is_active === true)
+        setCategories(activeCategories)
+        if (activeCategories.length > 0 && !form.categories_id) {
+          setForm((f) => ({ ...f, categories_id: activeCategories[0].id }))
+        }
+
+        if (mine) {
+          setExistingPartner(mine)
+          setForm({
+            categories_id: mine.categories_id ?? mine.categories?.id ?? mine.category?.id ?? activeCategories[0]?.id ?? '',
+            band_name: mine.band_name ?? '',
+            description: mine.description ?? '',
+            location: mine.location ?? mine.location_gps ?? '',
+            location_name: mine.location_name ?? '',
+            cover_image: mine.cover_image ?? '',
+            is_active: mine.is_active ?? 1,
+          })
+        }
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [authUser?.id])
 
   const previewImage =
     form.cover_image ||
     'https://images.unsplash.com/photo-1493863641943-9b68992a8d07?auto=format&fit=crop&w=1200&q=80'
 
-  const updateField = (field, value) => {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }))
-  }
+  const updateField = (field, value) => setForm((f) => ({ ...f, [field]: value }))
 
   const handleCoverImageChange = (event) => {
     const file = event.target.files?.[0]
     if (!file) return
-
     const reader = new FileReader()
     reader.onload = () => {
       setCoverImageName(file.name)
@@ -84,13 +88,48 @@ function PartnerSetup() {
     reader.readAsDataURL(file)
   }
 
-  const handleSubmit = (event) => {
-    event.preventDefault()
-
-    const partnerPayload = buildPartnerPayload(form, authUser)
-    window.localStorage.setItem(PARTNER_DRAFT_KEY, JSON.stringify(partnerPayload))
-    setSavedPayload(partnerPayload)
+  const showSuccess = (msg) => {
+    setSuccessMsg(msg)
+    setTimeout(() => setSuccessMsg(''), 4000)
   }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    if (!authUser?.id) {
+      alert('Bạn chưa đăng nhập.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+
+    const payload = {
+      user_id: authUser.id,
+      categories_id: Number(form.categories_id),
+      band_name: form.band_name.trim(),
+      description: form.description.trim(),
+      location_gps: form.location.trim() || undefined,
+      location_name: form.location_name.trim(),
+      cover_image: form.cover_image || undefined,
+      is_active: Number(form.is_active),
+    }
+
+    try {
+      if (existingPartner) {
+        await updatePartner(existingPartner.id, payload)
+        showSuccess('Đã cập nhật hồ sơ partner thành công!')
+      } else {
+        const created = await createPartner(payload)
+        setExistingPartner(created)
+        showSuccess('Đã tạo hồ sơ partner thành công! Bạn có thể vào Dashboard để quản lý.')
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const selectedCategory = categories.find((c) => c.id === Number(form.categories_id))
 
   return (
     <main className="partner-setup-page">
@@ -114,10 +153,55 @@ function PartnerSetup() {
           <div className="partner-setup-form__heading">
             <div>
               <span>PARTNER TABLE</span>
-              <h2>Nhập dữ liệu partner</h2>
+              <h2>{existingPartner ? 'Cập nhật hồ sơ partner' : 'Tạo hồ sơ partner'}</h2>
             </div>
-            <button type="submit">Lưu hồ sơ</button>
+            <button type="submit" disabled={saving || loading}>
+              {saving ? 'Đang lưu…' : existingPartner ? 'Cập nhật' : 'Lưu hồ sơ'}
+            </button>
           </div>
+
+          {successMsg && (
+            <div
+              style={{
+                background: '#d4edda',
+                border: '1px solid #c3e6cb',
+                color: '#155724',
+                borderRadius: '8px',
+                padding: '0.75rem 1.25rem',
+                marginBottom: '1rem',
+                fontWeight: 600,
+              }}
+            >
+              {successMsg}
+              {existingPartner && (
+                <>
+                  {' '}
+                  <a
+                    href="/partner-dashboard"
+                    onClick={(e) => navigate(e, '/partner-dashboard')}
+                    style={{ color: '#155724', textDecoration: 'underline' }}
+                  >
+                    Vào Dashboard →
+                  </a>
+                </>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div
+              style={{
+                background: '#f8d7da',
+                border: '1px solid #f5c6cb',
+                color: '#721c24',
+                borderRadius: '8px',
+                padding: '0.75rem 1.25rem',
+                marginBottom: '1rem',
+              }}
+            >
+              Lỗi: {error}
+            </div>
+          )}
 
           <div className="partner-setup-grid">
             <label>
@@ -131,11 +215,15 @@ function PartnerSetup() {
                 value={form.categories_id}
                 onChange={(event) => updateField('categories_id', event.target.value)}
               >
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {fixVnText(category.name)}
-                  </option>
-                ))}
+                {loading ? (
+                  <option>Đang tải…</option>
+                ) : (
+                  categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))
+                )}
               </select>
             </label>
 
@@ -161,7 +249,7 @@ function PartnerSetup() {
             </label>
 
             <label>
-              <span>Tọa độ / location</span>
+              <span>Tọa độ / location_gps</span>
               <input
                 type="text"
                 value={form.location}
@@ -183,14 +271,10 @@ function PartnerSetup() {
 
             <label className="partner-setup-grid__wide">
               <span>Ảnh bìa / cover_image</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleCoverImageChange}
-              />
+              <input type="file" accept="image/*" onChange={handleCoverImageChange} />
               <div className="partner-cover-upload__box">
                 <strong>{coverImageName || 'Tải ảnh bìa lên'}</strong>
-                <p>Hỗ trợ JPG, PNG, WEBP. Khi nối backend, field này có thể gửi bằng FormData.</p>
+                <p>Hỗ trợ JPG, PNG, WEBP.</p>
               </div>
             </label>
 
@@ -205,13 +289,6 @@ function PartnerSetup() {
               </select>
             </label>
           </div>
-
-          {savedPayload && (
-            <div className="partner-setup-success">
-              <strong>Đã lưu draft partner profile</strong>
-              <p>Dữ liệu đã được lưu vào localStorage để mô phỏng response trước khi nối backend.</p>
-            </div>
-          )}
         </form>
 
         <aside className="partner-setup-preview">
@@ -223,12 +300,7 @@ function PartnerSetup() {
             <dl>
               <div>
                 <dt>Danh mục</dt>
-                <dd>
-                  {fixVnText(
-                    categories.find((category) => category.id === Number(form.categories_id))
-                      ?.name,
-                  )}
-                </dd>
+                <dd>{selectedCategory?.name ?? '—'}</dd>
               </div>
               <div>
                 <dt>Khu vực</dt>

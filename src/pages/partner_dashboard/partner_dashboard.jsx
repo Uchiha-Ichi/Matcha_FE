@@ -1,15 +1,7 @@
+import { useEffect, useState } from 'react'
 import { clearAuthUser, getAuthUser } from '../../utils/auth.js'
-import {
-  mockBookingDetails,
-  mockBookings,
-  mockConcepts,
-  mockConversations,
-  mockNotifications,
-  mockPartnerConcepts,
-  mockPartners,
-  mockPayments,
-  mockUsers,
-} from '../../../mockdata.js'
+import { getBookings, getMyPartner, getPartnerConcepts, updateBookingStatus } from '../../utils/api.js'
+import LoadingScreen from '../../components/LoadingScreen.jsx'
 import './partner_dashboard.css'
 
 const statusMeta = {
@@ -25,34 +17,27 @@ const paymentLabel = {
   unpaid: 'Chưa thanh toán',
 }
 
-const fixVnText = (text) => {
-  if (typeof text !== 'string') return text
+const formatPrice = (value) =>
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value ?? 0)
+
+const formatDateTime = (value) => {
+  if (!value) return '—'
   try {
-    return decodeURIComponent(escape(text))
+    return new Intl.DateTimeFormat('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value))
   } catch {
-    return text
+    return value
   }
 }
 
-const formatPrice = (value) =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
-
-const formatDateTime = (value) =>
-  new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value.replace(' ', 'T')))
-
 const navigate = (event, path) => {
   event.preventDefault()
-
-  if (window.location.pathname === path) {
-    return
-  }
-
+  if (window.location.pathname === path) return
   window.history.pushState({}, '', path)
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
@@ -87,7 +72,7 @@ export function PartnerDashboardHeader({ partner, activePath = '/partner-dashboa
         </span>
         <div>
           <strong>MATCHA PARTNER</strong>
-          <em>{partner.band_name}</em>
+          <em>{partner?.band_name ?? '…'}</em>
         </div>
       </a>
 
@@ -149,99 +134,100 @@ export function PartnerDashboardHeader({ partner, activePath = '/partner-dashboa
   )
 }
 
-const buildPartnerDashboardData = () => {
-  const partner = mockPartners[0]
-  const userById = new Map(mockUsers.map((user) => [user.id, user]))
-  const paymentByBookingId = new Map(
-    mockPayments.map((payment) => [payment.booking_id, payment]),
-  )
-  const detailByBookingId = new Map(
-    mockBookingDetails.map((detail) => [detail.booking_id, detail]),
-  )
-  const partnerConceptById = new Map(
-    mockPartnerConcepts.map((item) => [item.id, item]),
-  )
-  const conceptById = new Map(mockConcepts.map((concept) => [concept.id, concept]))
-
-  const partnerConcepts = mockPartnerConcepts
-    .filter((item) => item.partner_id === partner.id)
-    .map((item) => ({
-      ...item,
-      conceptName: fixVnText(conceptById.get(item.concept_id)?.name) ?? 'Concept',
-    }))
-
-  const bookings = mockBookings
-    .filter((booking) => booking.partner_id === partner.id)
-    .map((booking) => {
-      const detail = detailByBookingId.get(booking.id)
-      const partnerConcept = detail
-        ? partnerConceptById.get(detail.partner_concept_id)
-        : null
-      const concept = partnerConcept ? conceptById.get(partnerConcept.concept_id) : null
-      const customer = userById.get(booking.user_id)
-      const payment = paymentByBookingId.get(booking.id)
-
-      return {
-        ...booking,
-        customerName: fixVnText(customer?.full_name) ?? 'Khách hàng',
-        customerAvatar: customer?.avatar_src,
-        serviceName: fixVnText(concept?.name) ?? 'Dịch vụ',
-        paymentStatus: payment?.status ?? 'unpaid',
-      }
-    })
-    .sort((first, second) => new Date(second.booking_time) - new Date(first.booking_time))
-
-  const revenue = bookings
-    .filter((booking) => booking.status === 'completed')
-    .reduce((total, booking) => total + booking.price - booking.price_discount, 0)
-
-  const conversations = mockConversations
-    .filter((conversation) => conversation.partner_id === partner.id)
-    .map((conversation) => ({
-      ...conversation,
-      customerName: fixVnText(userById.get(conversation.user_id)?.full_name) ?? 'Khách hàng',
-    }))
-
-  const notifications = mockNotifications.filter(
-    (notification) => notification.user_id === partner.user_id,
-  )
-
-  return {
-    partner: {
-      ...partner,
-      band_name: fixVnText(partner.band_name),
-      description: fixVnText(partner.description),
-      location_name: fixVnText(partner.location_name),
-    },
-    bookings,
-    partnerConcepts,
-    conversations,
-    notifications,
-    stats: {
-      totalBookings: bookings.length,
-      pendingBookings: bookings.filter((booking) => booking.status === 'pending').length,
-      confirmedBookings: bookings.filter((booking) => booking.status === 'confirmed').length,
-      revenue,
-    },
-  }
-}
-
 function PartnerDashboard() {
-  const dashboard = buildPartnerDashboardData()
+  const authUser = getAuthUser()
+  const [partner, setPartner] = useState(null)
+  const [bookings, setBookings] = useState([])
+  const [services, setServices] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [updatingId, setUpdatingId] = useState(null)
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [myPartner, allBookings, allConcepts] = await Promise.all([
+          getMyPartner(),
+          getBookings(),
+          getPartnerConcepts(),
+        ])
+
+        if (myPartner) {
+          setPartner(myPartner)
+
+          const myBookings = (allBookings || [])
+            .filter((b) => b.partner?.id === myPartner.id || b.partner_id === myPartner.id)
+            .sort((a, b) => new Date(b.booking_time) - new Date(a.booking_time))
+          setBookings(myBookings)
+
+          const myConcepts = (allConcepts || []).filter(
+            (c) => c.partner?.id === myPartner.id || c.partner_id === myPartner.id,
+          )
+          setServices(myConcepts)
+        }
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [authUser?.id])
+
+  const handleUpdateStatus = async (bookingId, newStatus) => {
+    setUpdatingId(bookingId)
+    try {
+      await updateBookingStatus(bookingId, newStatus)
+      setBookings((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, status: newStatus } : b)),
+      )
+    } catch (err) {
+      alert(`Cập nhật thất bại: ${err.message}`)
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const stats = {
+    totalBookings: bookings.length,
+    pendingBookings: bookings.filter((b) => b.status === 'pending').length,
+    confirmedBookings: bookings.filter((b) => b.status === 'confirmed').length,
+    revenue: bookings
+      .filter((b) => b.status === 'completed')
+      .reduce((sum, b) => sum + (Number(b.price) - Number(b.price_discount)), 0),
+  }
+
+  if (loading) {
+    return (
+      <main className="partner-dashboard-page">
+        <PartnerDashboardHeader partner={partner} />
+        <LoadingScreen text="Đang tải dữ liệu..." />
+      </main>
+    )
+  }
+
+  if (error) {
+    return (
+      <main className="partner-dashboard-page">
+        <PartnerDashboardHeader partner={partner} />
+        <div style={{ padding: '2rem', color: 'crimson' }}>Lỗi: {error}</div>
+      </main>
+    )
+  }
 
   return (
     <main className="partner-dashboard-page">
-      <PartnerDashboardHeader partner={dashboard.partner} />
+      <PartnerDashboardHeader partner={partner} />
 
       <section className="partner-dashboard-hero">
-        <img src={dashboard.partner.cover_image} alt={dashboard.partner.band_name} />
+        <img src={partner?.cover_image} alt={partner?.band_name} />
         <div className="partner-dashboard-hero__overlay" />
         <div className="partner-dashboard-hero__content">
           <span>PARTNER DASHBOARD</span>
-          <h1>{dashboard.partner.band_name}</h1>
-          <p>{dashboard.partner.description}</p>
+          <h1>{partner?.band_name ?? 'Studio của bạn'}</h1>
+          <p>{partner?.description}</p>
           <div>
-            <strong>{dashboard.partner.location_name}</strong>
+            <strong>{partner?.location_name}</strong>
             <a href="/partner-setup" onClick={(event) => navigate(event, '/partner-setup')}>
               Chỉnh sửa hồ sơ
             </a>
@@ -254,19 +240,19 @@ function PartnerDashboard() {
           <div className="partner-stats-grid">
             <article>
               <span>Tổng đơn</span>
-              <strong>{dashboard.stats.totalBookings}</strong>
+              <strong>{stats.totalBookings}</strong>
             </article>
             <article>
               <span>Chờ xác nhận</span>
-              <strong>{dashboard.stats.pendingBookings}</strong>
+              <strong>{stats.pendingBookings}</strong>
             </article>
             <article>
               <span>Đã xác nhận</span>
-              <strong>{dashboard.stats.confirmedBookings}</strong>
+              <strong>{stats.confirmedBookings}</strong>
             </article>
             <article>
               <span>Doanh thu hoàn tất</span>
-              <strong>{formatPrice(dashboard.stats.revenue)}</strong>
+              <strong>{formatPrice(stats.revenue)}</strong>
             </article>
           </div>
 
@@ -276,21 +262,38 @@ function PartnerDashboard() {
                 <span>BOOKING</span>
                 <h2>Đơn đặt lịch gần đây</h2>
               </div>
-              <button type="button">Xuất báo cáo</button>
+              <a href="/partner-bookings" onClick={(event) => navigate(event, '/partner-bookings')}>
+                Xem tất cả
+              </a>
             </div>
 
             <div className="partner-booking-list">
-              {dashboard.bookings.map((booking) => {
+              {bookings.slice(0, 5).map((booking) => {
                 const status = statusMeta[booking.status] ?? statusMeta.pending
+                const payment = booking.payments?.[0]
+                const paymentStatus = payment?.status ?? 'unpaid'
+                const conceptName =
+                  booking.details?.[0]?.partner_concept?.concept?.name ?? 'Dịch vụ'
+
+                // Next valid status transitions
+                const nextStatus =
+                  booking.status === 'pending'
+                    ? 'confirmed'
+                    : booking.status === 'confirmed'
+                      ? 'completed'
+                      : null
 
                 return (
                   <article key={booking.id} className="partner-booking-card">
-                    <img src={booking.customerAvatar} alt={booking.customerName} />
+                    <img
+                      src={booking.user?.avatar ?? `https://i.pravatar.cc/80?u=${booking.id}`}
+                      alt={booking.user?.full_name ?? 'Khách hàng'}
+                    />
                     <div>
                       <div className="partner-booking-card__top">
                         <div>
-                          <strong>{booking.customerName}</strong>
-                          <p>{booking.serviceName}</p>
+                          <strong>{booking.user?.full_name ?? 'Khách hàng'}</strong>
+                          <p>{conceptName}</p>
                         </div>
                         <span className={`partner-status partner-status--${status.tone}`}>
                           {status.label}
@@ -299,20 +302,35 @@ function PartnerDashboard() {
 
                       <div className="partner-booking-card__meta">
                         <span>{formatDateTime(booking.booking_time)}</span>
-                        <span>{paymentLabel[booking.paymentStatus]}</span>
-                        <span>{formatPrice(booking.price - booking.price_discount)}</span>
+                        <span>{paymentLabel[paymentStatus]}</span>
+                        <span>{formatPrice(Number(booking.price) - Number(booking.price_discount))}</span>
                       </div>
 
                       <div className="partner-booking-card__actions">
                         <a href="/chat" onClick={(event) => navigate(event, '/chat')}>
                           Nhắn khách
                         </a>
-                        <button type="button">Cập nhật trạng thái</button>
+                        {nextStatus && (
+                          <button
+                            type="button"
+                            disabled={updatingId === booking.id}
+                            onClick={() => handleUpdateStatus(booking.id, nextStatus)}
+                          >
+                            {updatingId === booking.id
+                              ? 'Đang cập nhật…'
+                              : nextStatus === 'confirmed'
+                                ? 'Xác nhận'
+                                : 'Hoàn thành'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </article>
                 )
               })}
+              {bookings.length === 0 && (
+                <p className="partner-empty-text">Chưa có đơn đặt lịch nào.</p>
+              )}
             </div>
           </section>
 
@@ -322,52 +340,32 @@ function PartnerDashboard() {
                 <span>SERVICE</span>
                 <h2>Dịch vụ đang bán</h2>
               </div>
-              <button type="button">Thêm dịch vụ</button>
+              <a href="/partner-services" onClick={(event) => navigate(event, '/partner-services')}>
+                Quản lý
+              </a>
             </div>
 
             <div className="partner-service-grid">
-              {dashboard.partnerConcepts.map((service) => (
+              {services.map((service) => (
                 <article key={service.id}>
                   <span>{service.time}</span>
-                  <h3>{service.conceptName}</h3>
+                  <h3>{service.concept?.name ?? 'Concept'}</h3>
                   <p>{service.image_des}</p>
                   <strong>{formatPrice(service.price)}</strong>
                 </article>
               ))}
+              {services.length === 0 && (
+                <p className="partner-empty-text">Chưa có dịch vụ nào.</p>
+              )}
             </div>
           </section>
         </div>
 
         <aside className="partner-dashboard-side">
           <section className="partner-side-card">
-            <span>CHAT</span>
-            <h2>Hội thoại mới</h2>
-            <div className="partner-chat-list">
-              {dashboard.conversations.map((conversation) => (
-                <a key={conversation.id} href="/chat" onClick={(event) => navigate(event, '/chat')}>
-                  <strong>{conversation.customerName}</strong>
-                  <p>{fixVnText(conversation.last_message)}</p>
-                  <span>{formatDateTime(conversation.updated_at)}</span>
-                </a>
-              ))}
-            </div>
-          </section>
-
-          <section className="partner-side-card">
             <span>NOTIFICATION</span>
             <h2>Thông báo</h2>
-            {dashboard.notifications.length > 0 ? (
-              <div className="partner-notification-list">
-                {dashboard.notifications.map((notification) => (
-                  <article key={notification.id}>
-                    <strong>{fixVnText(notification.name)}</strong>
-                    <p>{fixVnText(notification.description)}</p>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="partner-empty-text">Chưa có thông báo mới.</p>
-            )}
+            <p className="partner-empty-text">Chưa có thông báo mới.</p>
           </section>
         </aside>
       </section>

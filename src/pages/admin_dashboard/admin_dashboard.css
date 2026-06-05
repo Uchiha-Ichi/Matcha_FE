@@ -84,7 +84,8 @@
   overflow-x: auto;
 }
 
-.admin-nav a {
+.admin-nav a,
+.admin-nav button {
   min-height: 40px;
   border-radius: 999px;
   display: inline-flex;
@@ -98,6 +99,7 @@
 }
 
 .admin-nav a:hover,
+.admin-nav button:hover,
 .admin-nav__active {
   background: #1f1713;
   color: #fff !important;

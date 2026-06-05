@@ -15,6 +15,8 @@ import PartnerServices from './pages/partner_services/partner_services.jsx'
 import PartnerSetup from './pages/partner_setup/partner_setup.jsx'
 import Profile from './pages/profile/profile.jsx'
 import ServiceDetail from './pages/service_detail/service_detail.jsx'
+import AccessDenied from './pages/access_denied/access_denied.jsx'
+import { getAuthUser } from './utils/auth.js'
 
 const getCurrentRoute = () => window.location.pathname || '/'
 
@@ -48,6 +50,10 @@ function App() {
     return () => window.removeEventListener('popstate', handleRouteChange)
   }, [])
 
+  const authUser = getAuthUser()
+  const isLoggedIn = !!authUser
+  const userRole = authUser?.role
+
   if (route === '/about-matcha') {
     return <AboutMatcha />
   }
@@ -78,43 +84,58 @@ function App() {
   }
 
   if (route === '/chat') {
+    if (!isLoggedIn) return <Login closeHref="/chat" />
     return <Chat />
   }
 
   const bookingId = extractBookingId(route)
   if (bookingId !== null) {
+    if (!isLoggedIn) return <Login closeHref={`/bookings/${bookingId}`} />
     return <OrderHistory bookingId={bookingId} />
   }
 
   if (route === '/order-history') {
+    if (!isLoggedIn) return <Login closeHref="/order-history" />
     return <OrderHistory />
   }
 
   if (route === '/profile') {
+    if (!isLoggedIn) return <Login closeHref="/profile" />
     return <Profile />
   }
 
   if (route === '/partner-setup') {
+    if (!isLoggedIn) return <Login closeHref="/partner-setup" />
     return <PartnerSetup />
   }
 
   if (route === '/partner-dashboard') {
+    if (!isLoggedIn) return <Login closeHref="/partner-dashboard" />
+    if (userRole !== 'Partner') return <AccessDenied requiredRole="Đối tác (Partner)" />
     return <PartnerDashboard />
   }
 
   if (route === '/partner-bookings') {
+    if (!isLoggedIn) return <Login closeHref="/partner-bookings" />
+    if (userRole !== 'Partner') return <AccessDenied requiredRole="Đối tác (Partner)" />
     return <PartnerBookings />
   }
 
   if (route === '/partner-services') {
+    if (!isLoggedIn) return <Login closeHref="/partner-services" />
+    if (userRole !== 'Partner') return <AccessDenied requiredRole="Đối tác (Partner)" />
     return <PartnerServices />
   }
 
   if (route === '/partner-schedule') {
+    if (!isLoggedIn) return <Login closeHref="/partner-schedule" />
+    if (userRole !== 'Partner') return <AccessDenied requiredRole="Đối tác (Partner)" />
     return <PartnerSchedule />
   }
 
   if (route === '/admin-dashboard') {
+    if (!isLoggedIn) return <Login closeHref="/admin-dashboard" />
+    if (userRole !== 'Admin') return <AccessDenied requiredRole="Quản trị viên (Admin)" />
     return <AdminDashboard />
   }
 

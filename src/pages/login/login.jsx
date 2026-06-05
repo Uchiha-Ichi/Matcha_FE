@@ -70,7 +70,7 @@ function Login({ closeHref = '/' }) {
         }
 
         // 1. Sign up
-        await signUp(email, password)
+        await signUp(fullName, email, password, phone, isPartner ? 2 : 1)
 
         // 2. Cập nhật thông tin profile bổ sung (fullName, phone)
         const updateDto = {
@@ -95,7 +95,13 @@ function Login({ closeHref = '/' }) {
       }
 
       setAuthUser(userData)
-      navigateTo('/profile')
+      if (userData.role === 'Partner') {
+        navigateTo('/partner-dashboard')
+      } else if (userData.role === 'Customer') {
+        navigateTo('/profile')
+      } else {
+        navigateTo('/admin-dashboard')
+      }
     } catch (err) {
       setError(err.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.')
     } finally {
