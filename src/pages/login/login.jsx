@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { defaultAuthUser, setAuthUser } from '../../utils/auth.js'
+import { setAuthUser } from '../../utils/auth.js'
+import { signIn, signUp, updateMe, getMe } from '../../utils/api.js'
 import './login.css'
 
 const tabs = [
@@ -29,27 +30,77 @@ const navigateTo = (path) => {
 function Login({ closeHref = '/' }) {
   const [activeTab, setActiveTab] = useState('login')
   const [activeRole, setActiveRole] = useState('customer')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   const isRegister = activeTab === 'register'
   const isPartner = activeRole === 'partner'
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
+    setError(null)
+    setLoading(true)
 
     const formData = new FormData(event.currentTarget)
-    const fullName = formData.get('fullName')?.toString().trim()
     const email = formData.get('email')?.toString().trim()
-    const phone = formData.get('phone')?.toString().trim()
+    const password = formData.get('password')?.toString()
 
-    setAuthUser({
-      ...defaultAuthUser,
-      fullName: fullName || defaultAuthUser.fullName,
-      email: email || defaultAuthUser.email,
-      phone: phone || defaultAuthUser.phone,
-      role: isRegister && isPartner ? 'Partner' : 'Customer',
-    })
+    if (!email || !password) {
+      setError('Vui lòng điền đầy đủ email và mật khẩu')
+      setLoading(false)
+      return
+    }
 
-    navigateTo('/profile')
+    try {
+      if (isRegister) {
+        const fullName = formData.get('fullName')?.toString().trim()
+        const phone = formData.get('phone')?.toString().trim()
+        const confirmPassword = formData.get('confirmPassword')?.toString()
+
+        if (!fullName) {
+          setError('Vui lòng nhập họ và tên')
+          setLoading(false)
+          return
+        }
+
+        if (password !== confirmPassword) {
+          setError('Mật khẩu xác nhận không khớp')
+          setLoading(false)
+          return
+        }
+
+        // 1. Sign up
+        await signUp(email, password)
+
+        // 2. Cập nhật thông tin profile bổ sung (fullName, phone)
+        const updateDto = {
+          full_name: fullName,
+          phone: phone || '',
+        }
+        await updateMe(updateDto)
+      } else {
+        // Sign in
+        await signIn(email, password)
+      }
+
+      // 3. Fetch detailed user profile to save in frontend auth state
+      const me = await getMe()
+      const userData = {
+        id: me.id,
+        fullName: me.full_name || me.email.split('@')[0],
+        email: me.email,
+        phone: me.phone || '',
+        role: me.role?.name || 'Customer',
+        avatar: me.avatar_src || `https://i.pravatar.cc/100?u=matcha-${me.id}`,
+      }
+
+      setAuthUser(userData)
+      navigateTo('/profile')
+    } catch (err) {
+      setError(err.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -110,6 +161,22 @@ function Login({ closeHref = '/' }) {
           className={`login-form ${isRegister ? 'login-form--register' : ''}`}
           onSubmit={handleSubmit}
         >
+          {error && (
+            <div className="login-form__error" style={{
+              background: 'rgba(255, 77, 79, 0.08)',
+              border: '1px solid rgba(255, 77, 79, 0.2)',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              color: '#ff4d4f',
+              fontSize: '14px',
+              marginBottom: '20px',
+              textAlign: 'center',
+              lineHeight: '1.4'
+            }}>
+              ⚠ {error}
+            </div>
+          )}
+
           {isRegister && (
             <div className="login-form__section">
               <p className="login-form__section-title">Bạn đăng ký với vai trò</p>
@@ -133,13 +200,13 @@ function Login({ closeHref = '/' }) {
           {isRegister && (
             <label className="login-form__field">
               <span>Họ và tên</span>
-              <input type="text" name="fullName" placeholder="Nhập họ và tên" />
+              <input type="text" name="fullName" placeholder="Nhập họ và tên" required />
             </label>
           )}
 
           <label className="login-form__field">
             <span>Email</span>
-            <input type="email" name="email" placeholder="Nhập email" />
+            <input type="email" name="email" placeholder="Nhập email" required />
           </label>
 
           {isRegister && (
@@ -172,13 +239,14 @@ function Login({ closeHref = '/' }) {
               type="password"
               name="password"
               placeholder={isRegister ? 'Tạo mật khẩu' : 'Nhập mật khẩu'}
+              required
             />
           </label>
 
           {isRegister && (
             <label className="login-form__field">
               <span>Xác nhận mật khẩu</span>
-              <input type="password" name="confirmPassword" placeholder="Nhập lại mật khẩu" />
+              <input type="password" name="confirmPassword" placeholder="Nhập lại mật khẩu" required />
             </label>
           )}
 
@@ -201,8 +269,8 @@ function Login({ closeHref = '/' }) {
             )}
           </div>
 
-          <button className="login-form__submit" type="submit">
-            {isRegister ? 'Tạo tài khoản' : 'Đăng nhập'}
+          <button className="login-form__submit" type="submit" disabled={loading}>
+            {loading ? 'Đang xử lý...' : isRegister ? 'Tạo tài khoản' : 'Đăng nhập'}
           </button>
         </form>
       </div>

@@ -1,67 +1,24 @@
+import { useEffect, useState, useMemo } from 'react'
+import { generateAiIdea } from '../../utils/api.js'
 import './ai_idea_result.css'
 
-const moodboardImages = [
-  'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80',
-]
-
-const posingIdeas = [
-  {
-    title: 'Bước chậm dọc bờ hồ',
-    description:
-      'Thả lỏng vai, mắt nhìn xa và để tà váy hoặc tóc chuyển động theo gió để khung hình tự nhiên hơn.',
-  },
-  {
-    title: 'Ngồi nghiêng nhẹ trên ghế đá',
-    description:
-      'Giữ lưng thẳng, tay đặt hờ trên váy hoặc bó hoa, gương mặt nghiêng 30 độ để lên nét mềm mại.',
-  },
-  {
-    title: 'Chạm tay vào nón hoặc hoa',
-    description:
-      'Dùng đạo cụ như bó cúc nhỏ, mũ cói hoặc khăn lụa để tạo điểm nhấn và giúp tay không bị cứng.',
-  },
-]
-
-const recommendedTeam = [
-  {
-    id: 1,
-    role: 'NHIẾP ẢNH',
-    title: 'Chụp ảnh nàng thơ nhẹ nhàng',
-    partner: 'Minh Trần',
-    partnerId: '#1',
-    rating: '4.9',
-    price: 1200000,
-    image:
-      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
-    avatar: 'https://i.pravatar.cc/100?u=ai-minh-tran',
-  },
-  {
-    id: 2,
-    role: 'NHIẾP ẢNH',
-    title: 'Chụp ảnh',
-    partner: 'partner',
-    partnerId: '#7',
-    rating: '5',
-    price: 500000,
-    image:
-      'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=80',
-    avatar: 'https://i.pravatar.cc/100?u=ai-partner',
-  },
-  {
-    id: 3,
-    role: 'MAKEUP',
-    title: 'Chuyên gia Trang điểm',
-    partner: 'Hoa Nguyễn MUA',
-    partnerId: '#2',
-    rating: '5',
-    price: 600000,
-    image:
-      'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=900&q=80',
-    avatar: 'https://i.pravatar.cc/100?u=ai-hoa-nguyen',
-  },
-]
+const moodboardSets = {
+  vintage: [
+    'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=900&q=80',
+    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
+    'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80',
+  ],
+  modern: [
+    'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80',
+    'https://images.unsplash.com/photo-1487412912498-0447578fcca8?auto=format&fit=crop&w=900&q=80',
+    'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=900&q=80',
+  ],
+  nature: [
+    'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=900&q=80',
+    'https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=900&q=80',
+    'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80',
+  ]
+}
 
 const formatPrice = (value) =>
   new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(value)
@@ -78,6 +35,174 @@ const navigate = (event, path) => {
 }
 
 function AiIdeaResult() {
+  const [ideaData, setIdeaData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const queryParams = useMemo(() => new URLSearchParams(window.location.search), [])
+  const query = useMemo(() => queryParams.get('query') || '', [queryParams])
+
+  useEffect(() => {
+    if (!query) {
+      setError('Vui lòng quay lại trang chủ và nhập ý tưởng chụp ảnh.')
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    async function load() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const res = await generateAiIdea(query)
+        if (cancelled) return
+
+        if (!res.isValid) {
+          setError(res.errorMessage || 'Ý tưởng không thuộc chủ đề chụp ảnh. Vui lòng thử lại!')
+        } else {
+          setIdeaData(res)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message || 'Không thể liên kết với máy chủ AI.')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [query])
+
+  const moodboardImages = useMemo(() => {
+    if (!ideaData) return moodboardSets.modern
+    const titleLower = (ideaData.title || '').toLowerCase()
+    const tagsLower = (ideaData.tags || []).map((t) => t.toLowerCase())
+
+    const isVintage =
+      titleLower.includes('vintage') ||
+      titleLower.includes('cổ') ||
+      tagsLower.includes('vintage') ||
+      tagsLower.includes('hoài niệm')
+    const isNature =
+      titleLower.includes('hồ') ||
+      titleLower.includes('ngoại cảnh') ||
+      titleLower.includes('phố') ||
+      tagsLower.includes('hồ tây') ||
+      tagsLower.includes('thiên nhiên')
+
+    if (isVintage) return moodboardSets.vintage
+    if (isNature) return moodboardSets.nature
+    return moodboardSets.modern
+  }, [ideaData])
+
+  // RENDER LOADING STATE
+  if (loading) {
+    return (
+      <main className="ai-idea-page">
+        <header className="ai-idea-topbar">
+          <div className="ai-idea-topbar__left">
+            <a
+              className="ai-idea-brand"
+              href="/"
+              onClick={(event) => navigate(event, '/')}
+            >
+              <span className="ai-idea-brand__icon">✦</span>
+              <span>MATCHA</span>
+            </a>
+          </div>
+          <strong className="ai-idea-query">"{query}"</strong>
+        </header>
+
+        <div className="ai-idea-shell" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center' }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            border: '4px solid #eadfD2',
+            borderTopColor: '#009b72',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '24px'
+          }} />
+          <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#1f1a16' }}>Matcha AI đang lên ý tưởng...</h2>
+          <p style={{ color: '#6f6257', marginTop: '8px', maxWidth: '440px', fontSize: '15px', lineHeight: '1.6' }}>
+            Chúng tôi đang phân tích ý tưởng của bạn, thiết kế concept, gợi ý trang phục, tạo dáng và lựa chọn ekip đối tác phù hợp nhất.
+          </p>
+
+          <style>{`
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      </main>
+    )
+  }
+
+  // RENDER ERROR / INVALID PROMPT STATE
+  if (error) {
+    return (
+      <main className="ai-idea-page">
+        <header className="ai-idea-topbar">
+          <div className="ai-idea-topbar__left">
+            <a
+              className="ai-idea-brand"
+              href="/"
+              onClick={(event) => navigate(event, '/')}
+            >
+              <span className="ai-idea-brand__icon">✦</span>
+              <span>MATCHA</span>
+            </a>
+          </div>
+          <strong className="ai-idea-query">"{query}"</strong>
+        </header>
+
+        <div className="ai-idea-shell" style={{ padding: '40px 16px' }}>
+          <section className="ai-idea-card" style={{ textAlign: 'center', padding: '40px 30px' }}>
+            <span style={{ fontSize: '48px', display: 'block', marginBottom: '16px' }}>⚠️</span>
+            <h1 style={{ fontSize: '24px', fontWeight: '800', color: '#181512', marginBottom: '16px' }}>
+              Từ chối lên ý tưởng
+            </h1>
+            <p style={{
+              fontSize: '15px',
+              color: '#63574d',
+              lineHeight: '1.7',
+              maxWidth: '520px',
+              margin: '0 auto 28px'
+            }}>
+              {error}
+            </p>
+            <button
+              type="button"
+              onClick={(event) => navigate(event, '/')}
+              style={{
+                background: '#1f1713',
+                color: '#fff',
+                border: 'none',
+                padding: '12px 36px',
+                borderRadius: '999px',
+                fontSize: '15px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              Quay về trang chủ
+            </button>
+          </section>
+        </div>
+      </main>
+    )
+  }
+
+  // RENDER SUCCESS DATA STATE
   return (
     <main className="ai-idea-page">
       <header className="ai-idea-topbar">
@@ -121,7 +246,7 @@ function AiIdeaResult() {
           </a>
         </div>
 
-        <strong className="ai-idea-query">"nàng thơ ở hồ tây"</strong>
+        <strong className="ai-idea-query">"{query}"</strong>
 
         <a
           className="ai-idea-round-btn"
@@ -147,19 +272,13 @@ function AiIdeaResult() {
         <section className="ai-idea-card">
           <div className="ai-idea-card__copy">
             <div className="ai-idea-tags">
-              {['NÀNG THƠ', 'HỒ TÂY', 'VINTAGE', 'LÃNG MẠN', 'HOÀNG HÔN', 'HÀ NỘI'].map(
-                (tag) => (
-                  <span key={tag}>{tag}</span>
-                ),
-              )}
+              {(ideaData.tags || []).map((tag) => (
+                <span key={tag}>{tag}</span>
+              ))}
             </div>
 
-            <h1>Nàng Thơ Bên Bờ Hồ Tây</h1>
-            <p>
-              "Câu chuyện về một cô gái mang tâm hồn thi sĩ, tìm đến vẻ đẹp tĩnh lặng
-              của Hồ Tây vào buổi chiều tà để trốn khỏi sự ồn ào của phố thị, hòa mình
-              vào ánh hoàng hôn nhuộm đỏ mặt hồ."
-            </p>
+            <h1>{ideaData.title}</h1>
+            <p>"{ideaData.description}"</p>
           </div>
 
           <span className="ai-idea-wand" aria-hidden="true">
@@ -179,17 +298,14 @@ function AiIdeaResult() {
               <span aria-hidden="true">✣</span>
               <div>
                 <p>VIBE & CẢM HỨNG</p>
-                <strong>Thơ mộng, nhẹ nhàng, hoài niệm và đậm chất điện ảnh Pháp</strong>
+                <strong>{ideaData.vibe}</strong>
               </div>
             </article>
             <article>
               <span aria-hidden="true">✣</span>
               <div>
                 <p>MAKEUP & TRANG PHỤC</p>
-                <strong>
-                  Váy maxi trắng nhẹ nhàng, chất liệu lụa hoặc voan, kết hợp cùng mũ
-                  cói và sandal quai mảnh.
-                </strong>
+                <strong>{ideaData.makeupAndCostume}</strong>
               </div>
             </article>
           </div>
@@ -198,27 +314,27 @@ function AiIdeaResult() {
         <section className="ai-section">
           <h2>
             <span aria-hidden="true">⌘</span>
-            Moodboard Trực Quan
+            Moodboard Gợi Ý
           </h2>
 
           <div className="ai-moodboard">
             {moodboardImages.map((image) => (
-              <img key={image} src={image} alt="Moodboard nàng thơ Hồ Tây" />
+              <img key={image} src={image} alt="Moodboard" />
             ))}
           </div>
 
           <div className="ai-info-grid">
             <div className="ai-info-pill ai-info-pill--wide">
               <span aria-hidden="true">⌖</span>
-              Đề xuất: Bến Hàn Quốc và các cung đường ven Hồ Tây, Hà Nội
+              Đề xuất địa điểm: {ideaData.locationRecommendation}
             </div>
             <div className="ai-info-pill">
               <span aria-hidden="true">☼</span>
-              Ánh sáng tốt nhất: 16:00 - 18:30 (khung giờ vàng hoàng hôn)
+              Thời gian đẹp nhất: {ideaData.bestLightTime}
             </div>
             <div className="ai-info-pill">
               <span aria-hidden="true">▭</span>
-              Budget tổng: 2.500.000 - 4.500.000 VND
+              Budget ước tính: {ideaData.suggestedBudget}
             </div>
           </div>
         </section>
@@ -226,11 +342,11 @@ function AiIdeaResult() {
         <section className="ai-section">
           <h2>
             <span aria-hidden="true">✣</span>
-            Posing Gợi Ý
+            Hướng Dẫn Tạo Dáng (Posing)
           </h2>
 
           <div className="ai-posing-grid">
-            {posingIdeas.map((idea) => (
+            {(ideaData.posingIdeas || []).map((idea) => (
               <article key={idea.title}>
                 <h3>{idea.title}</h3>
                 <p>{idea.description}</p>
@@ -242,12 +358,12 @@ function AiIdeaResult() {
         <section className="ai-section ai-team-section">
           <h2>
             <span aria-hidden="true">✣</span>
-            "Dream Team" Đề Xuất
+            Ekip Đề Xuất
           </h2>
-          <p>AI đã chọn lọc những đối tác phù hợp nhất với phong cách và ngân sách của bạn.</p>
+          <p>Dưới đây là các đối tác có sẵn trên hệ thống Matcha phù hợp nhất với phong cách của bạn.</p>
 
           <div className="ai-team-grid">
-            {recommendedTeam.map((member) => (
+            {(ideaData.recommendedTeam || []).map((member) => (
               <article key={member.id} className="ai-team-card">
                 <div className="ai-team-card__image">
                   <img src={member.image} alt={member.title} />
@@ -266,7 +382,10 @@ function AiIdeaResult() {
 
                 <div className="ai-team-card__bottom">
                   <strong>{formatPrice(member.price)} đ</strong>
-                  <a href="/service-detail" onClick={(event) => navigate(event, '/service-detail')}>
+                  <a
+                    href={`/service-detail/${member.partnerConceptId}`}
+                    onClick={(event) => navigate(event, `/service-detail/${member.partnerConceptId}`)}
+                  >
                     Xem chi tiết
                   </a>
                 </div>

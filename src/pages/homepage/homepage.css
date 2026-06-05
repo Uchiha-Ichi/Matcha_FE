@@ -498,6 +498,66 @@
   background: #98d7a4;
 }
 
+/* ── Skeleton Loading ──────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.skeleton-line {
+  background: linear-gradient(90deg, #ede8e1 25%, #f5f0e8 50%, #ede8e1 75%);
+  background-size: 1200px 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: 8px;
+  display: block;
+}
+
+.skeleton-image {
+  background: linear-gradient(90deg, #ede8e1 25%, #f5f0e8 50%, #ede8e1 75%);
+  background-size: 1200px 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: 18px;
+  width: 100%;
+}
+
+.skeleton-card {
+  pointer-events: none;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid rgba(213, 205, 191, 0.9);
+  background: rgba(255,255,255,0.84);
+}
+
+.skeleton-card .card-image-wrap {
+  padding: 10px 10px 0;
+}
+
+.skeleton-card .card-body {
+  padding: 14px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── API Error & Empty State ─────────────────────────────────────────────────── */
+.api-error {
+  padding: 14px 20px;
+  background: #fff3f0;
+  border: 1px solid #f5c6c0;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  color: #c0392b;
+  font-size: 14px;
+}
+
+.empty-state {
+  padding: 48px;
+  text-align: center;
+  color: #69584c;
+  font-size: 16px;
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 1080px) {
   .section-heading {
     flex-direction: column;
