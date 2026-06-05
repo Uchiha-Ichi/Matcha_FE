@@ -1,13 +1,8 @@
+import { useEffect, useState } from 'react'
 import './homepage.css'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import {
-  mockCategories,
-  mockConcepts,
-  mockPartnerConcepts,
-  mockPartners,
-  mockUsers,
-} from '../../../mockdata.js'
+import { getPartnerConcepts, getPartners, getConcepts, getCategories } from '../../utils/api.js'
 
 const imageFallbacks = [
   'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=80',
@@ -23,65 +18,104 @@ const imageFallbacks = [
 ]
 
 const formatPrice = (value) =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-    value,
-  )
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
 
-const fixVnText = (text) => {
-  if (typeof text !== 'string') return text
-  try {
-    return decodeURIComponent(escape(text))
-  } catch {
-    return text
-  }
-}
-
-const navigate = (event, path) => {
+const navigate = (event, path, state = {}) => {
   event.preventDefault()
-
-  if (window.location.pathname === path) {
-    return
-  }
-
-  window.history.pushState({}, '', path)
+  if (window.location.pathname === path && !state) return
+  window.history.pushState(state, '', path)
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
+const badges = ['Matcha gợi ý', 'Mới', 'Phổ biến']
+
+function SkeletonCard() {
+  return (
+    <article className="service-card skeleton-card">
+      <div className="card-image-wrap skeleton-image" />
+      <div className="card-body">
+        <div className="skeleton-line" style={{ width: '60%', height: 14 }} />
+        <div className="skeleton-line" style={{ width: '90%', height: 20, marginTop: 10 }} />
+        <div className="skeleton-line" style={{ width: '70%', height: 14, marginTop: 8 }} />
+        <div className="skeleton-line" style={{ width: '50%', height: 18, marginTop: 16 }} />
+      </div>
+    </article>
+  )
+}
+
 function Homepage() {
-  const partnerById = new Map(mockPartners.map((partner) => [partner.id, partner]))
-  const conceptById = new Map(mockConcepts.map((concept) => [concept.id, concept]))
-  const userById = new Map(mockUsers.map((user) => [user.id, user]))
+  const [serviceItems, setServiceItems] = useState([])
+  const [filterTags, setFilterTags] = useState(['Tất cả'])
+  const [activeTag, setActiveTag] = useState('Tất cả')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [aiQuery, setAiQuery] = useState('')
 
-  const serviceItems = mockPartnerConcepts.map((item, index) => {
-    const partner = partnerById.get(item.partner_id)
-    const concept = conceptById.get(item.concept_id)
-    const owner = partner ? userById.get(partner.user_id) : null
+  useEffect(() => {
+    let cancelled = false
 
-    return {
-      id: item.id,
-      title: fixVnText(concept?.name) ?? 'Dịch vụ',
-      studioName: fixVnText(partner?.band_name) ?? 'Matcha Studio',
-      ownerName: fixVnText(owner?.full_name) ?? 'Đội ngũ Matcha',
-      location: fixVnText(partner?.location_name) ?? 'Việt Nam',
-      duration: item.time,
-      price: item.price,
-      image: imageFallbacks[index % imageFallbacks.length],
-      ownerAvatar: owner?.avatar_src ?? `https://i.pravatar.cc/100?u=matcha-${index}`,
-      badge: index % 3 === 0 ? 'Matcha gợi ý' : index % 3 === 1 ? 'Mới' : 'Phổ biến',
-      rating: index % 2 === 0 ? '4.9' : '4.8',
+    async function load() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const [partnerConcepts, partners, concepts, categories] = await Promise.all([
+          getPartnerConcepts().catch(() => []),
+          getPartners().catch(() => []),
+          getConcepts().catch(() => []),
+          getCategories().catch(() => []),
+        ])
+
+        if (cancelled) return
+
+        // Build lookup maps
+        const partnerById = new Map((partners ?? []).map((p) => [p.id, p]))
+        const conceptById = new Map((concepts ?? []).map((c) => [c.id, c]))
+
+        const items = (partnerConcepts ?? []).map((pc, index) => {
+          const partner = partnerById.get(pc.partner?.id ?? pc.partner_id)
+          const concept = conceptById.get(pc.concept?.id ?? pc.concept_id)
+
+          // Resolve image: API image_des → partner cover → fallback
+          const image =
+            pc.image_des ||
+            pc.images?.[0]?.image_src ||
+            partner?.cover_image ||
+            imageFallbacks[index % imageFallbacks.length]
+
+          return {
+            id: pc.id,
+            title: concept?.name ?? 'Dịch vụ',
+            studioName: partner?.band_name ?? 'Matcha Studio',
+            location: partner?.location_name ?? 'Việt Nam',
+            duration: pc.time ?? '—',
+            price: pc.price,
+            image,
+            rating: partner?.rating_avg > 0 ? Number(partner.rating_avg).toFixed(1) : '5.0',
+            badge: badges[index % badges.length],
+            partnerConceptId: pc.id,
+          }
+        })
+
+        setServiceItems(items)
+
+        // Build filter tags from categories + concepts
+        const categoryNames = (categories ?? [])
+          .filter((c) => c.is_active)
+          .slice(0, 4)
+          .map((c) => c.name)
+        const conceptNames = (concepts ?? []).slice(0, 3).map((c) => c.name)
+        setFilterTags(['Tất cả', ...categoryNames, ...conceptNames])
+      } catch (err) {
+        if (!cancelled) setError(err.message)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
-  })
 
-  const categoryTags = mockCategories
-    .filter((category) => category.is_active === 1)
-    .slice(0, 4)
-    .map((category) => fixVnText(category.name))
-
-  const conceptTags = mockConcepts
-    .slice(0, 3)
-    .map((concept) => fixVnText(concept.name))
-
-  const filterTags = ['Tất cả', ...categoryTags, ...conceptTags]
+    load()
+    return () => { cancelled = true }
+  }, [])
 
   const footerHighlights = [
     'Đối tác được xét duyệt kỹ trước khi xuất hiện trên Matcha',
@@ -95,14 +129,7 @@ function Homepage() {
 
       <section className="hero-section">
         <div className="hero-overlay" />
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          src="https://www.pexels.com/download/video/29539460/"
-        />
-
+        <video autoPlay loop muted playsInline src="https://www.pexels.com/download/video/29539460/" />
         <div className="hero-content">
           <h1>
             Mọi thứ bạn cần cho
@@ -120,8 +147,17 @@ function Homepage() {
                 <span className="search-leading-icon">✦</span>
                 <input
                   type="text"
-                  readOnly
-                  value="Mô tả ý tưởng... VD: Nàng thơ ở Hồ Tây"
+                  value={aiQuery}
+                  onChange={(e) => setAiQuery(e.target.value)}
+                  placeholder="Mô tả ý tưởng của bạn... VD: Nàng thơ ở Hồ Tây"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const q = aiQuery.trim()
+                      if (q) {
+                        navigate(e, `/ai-idea?query=${encodeURIComponent(q)}`)
+                      }
+                    }
+                  }}
                 />
               </div>
               <button className="search-upload-btn" type="button">
@@ -131,13 +167,18 @@ function Homepage() {
               <button
                 className="search-submit-btn"
                 type="button"
-                onClick={(event) => navigate(event, '/ai-idea')}
+                onClick={(event) => {
+                  const q = aiQuery.trim()
+                  if (!q) {
+                    alert('Vui lòng nhập ý tưởng chụp ảnh của bạn!')
+                    return
+                  }
+                  navigate(event, `/ai-idea?query=${encodeURIComponent(q)}`)
+                }}
               >
                 Lên ý tưởng
               </button>
             </div>
-
- 
           </div>
         </div>
       </section>
@@ -148,15 +189,15 @@ function Homepage() {
             <div>
               <h2>Khám phá dịch vụ</h2>
             </div>
-        
           </div>
 
           <div className="chips">
-            {filterTags.map((tag, index) => (
+            {filterTags.map((tag) => (
               <button
                 key={tag}
-                className={`chip ${index === 0 ? 'chip-active' : ''}`}
+                className={`chip ${activeTag === tag ? 'chip-active' : ''}`}
                 type="button"
+                onClick={() => setActiveTag(tag)}
               >
                 {tag}
               </button>
@@ -173,51 +214,69 @@ function Homepage() {
             </button>
           </div>
 
+          {error && (
+            <div className="api-error">
+              <span>⚠ Không thể tải dữ liệu: {error}</span>
+            </div>
+          )}
+
           <div className="cards-grid">
-            {serviceItems.map((service) => (
-              <article
-                key={service.id}
-                className="service-card"
-                role="link"
-                tabIndex={0}
-                onClick={(event) => navigate(event, '/service-detail')}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    navigate(event, '/service-detail')
-                  }
-                }}
-              >
-                <div className="card-image-wrap">
-                  <img src={service.image} alt={service.title} />
-                  <span className="card-badge">{service.badge}</span>
-                  <span className="card-save">♡</span>
-                </div>
-
-                <div className="card-body">
-                  <div className="card-topline">
-                    <span className="card-mini-tag">{service.duration}</span>
-                    <span className="card-rating">{service.rating}</span>
-                  </div>
-
-                  <h3>{service.title}</h3>
-                  <p className="card-studio">{service.studioName}</p>
-
-                  <div className="card-owner-row">
-                    <img src={service.ownerAvatar} alt={service.ownerName} />
-                    <div>
-                      <p className="card-owner">{service.ownerName}</p>
-                      <p className="card-location">{service.location}</p>
+            {loading
+              ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+              : serviceItems.map((service) => (
+                  <article
+                    key={service.id}
+                    className="service-card"
+                    role="link"
+                    tabIndex={0}
+                    onClick={(event) =>
+                      navigate(event, `/service-detail/${service.partnerConceptId}`, {
+                        partnerConceptId: service.partnerConceptId,
+                      })
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        navigate(event, `/service-detail/${service.partnerConceptId}`, {
+                          partnerConceptId: service.partnerConceptId,
+                        })
+                      }
+                    }}
+                  >
+                    <div className="card-image-wrap">
+                      <img src={service.image} alt={service.title} />
+                      <span className="card-badge">{service.badge}</span>
+                      <span className="card-save">♡</span>
                     </div>
-                  </div>
 
-                  <div className="card-meta">
-                    <span>Từ</span>
-                    <strong>{formatPrice(service.price)}</strong>
-                  </div>
-                </div>
-              </article>
-            ))}
+                    <div className="card-body">
+                      <div className="card-topline">
+                        <span className="card-mini-tag">{service.duration}</span>
+                        <span className="card-rating">⭐ {service.rating}</span>
+                      </div>
+
+                      <h3>{service.title}</h3>
+                      <p className="card-studio">{service.studioName}</p>
+
+                      <div className="card-owner-row">
+                        <div>
+                          <p className="card-location">📍 {service.location}</p>
+                        </div>
+                      </div>
+
+                      <div className="card-meta">
+                        <span>Từ</span>
+                        <strong>{formatPrice(service.price)}</strong>
+                      </div>
+                    </div>
+                  </article>
+                ))}
           </div>
+
+          {!loading && serviceItems.length === 0 && !error && (
+            <div className="empty-state">
+              <p>Chưa có dịch vụ nào. Hãy quay lại sau nhé!</p>
+            </div>
+          )}
 
           <div className="services-footer-notes">
             {footerHighlights.map((item) => (

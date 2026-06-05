@@ -18,6 +18,23 @@ import ServiceDetail from './pages/service_detail/service_detail.jsx'
 
 const getCurrentRoute = () => window.location.pathname || '/'
 
+/**
+ * Trích ID từ path `/service-detail/123` → 123
+ */
+function extractServiceDetailId(path) {
+  const match = path.match(/^\/service-detail\/(\d+)$/)
+  return match ? Number(match[1]) : null
+}
+
+/**
+ * Trích ID từ path `/bookings/123` → 123
+ */
+function extractBookingId(path) {
+  const match = path.match(/^\/bookings\/(\d+)$/)
+  return match ? Number(match[1]) : null
+}
+
+
 function App() {
   const [route, setRoute] = useState(getCurrentRoute)
 
@@ -43,6 +60,11 @@ function App() {
     return <ForgotPassword />
   }
 
+  // Hỗ trợ cả /service-detail (cũ, ko có id) và /service-detail/:id (mới)
+  const serviceDetailId = extractServiceDetailId(route)
+  if (serviceDetailId !== null) {
+    return <ServiceDetail partnerConceptId={serviceDetailId} />
+  }
   if (route === '/service-detail') {
     return <ServiceDetail />
   }
@@ -57,6 +79,11 @@ function App() {
 
   if (route === '/chat') {
     return <Chat />
+  }
+
+  const bookingId = extractBookingId(route)
+  if (bookingId !== null) {
+    return <OrderHistory bookingId={bookingId} />
   }
 
   if (route === '/order-history') {

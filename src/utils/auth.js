@@ -1,14 +1,6 @@
 const AUTH_STORAGE_KEY = 'matcha_auth_user'
 const AUTH_EVENT_NAME = 'matcha-auth-change'
 
-export const defaultAuthUser = {
-  id: 4,
-  fullName: 'Khách Hàng A',
-  email: 'userA@gmail.com',
-  phone: '0911111111',
-  role: 'Customer',
-  avatar: 'https://i.pravatar.cc/100?u=matcha-user',
-}
 
 export const getAuthUser = () => {
   try {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { clearAuthUser, getAuthUser, subscribeAuthChange } from '../utils/auth.js'
+import { getCart, signOut } from '../utils/api.js'
 import './layout.css'
 
 const getCurrentRoute = () => window.location.pathname || '/'
@@ -18,13 +19,47 @@ const navigate = (event, path) => {
 function Header() {
   const currentRoute = getCurrentRoute()
   const [authUser, setAuthUserState] = useState(getAuthUser)
+  const [cartCount, setCartCount] = useState(0)
 
   useEffect(() => subscribeAuthChange(setAuthUserState), [])
 
-  const handleLogout = () => {
+  const fetchCartCount = async () => {
+    if (!authUser) {
+      setCartCount(0)
+      return
+    }
+    try {
+      const cart = await getCart()
+      const count = cart?.items?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0
+      setCartCount(count)
+    } catch {
+      setCartCount(0)
+    }
+  }
+
+  useEffect(() => {
+    fetchCartCount()
+
+    const handleCartChange = () => {
+      fetchCartCount()
+    }
+
+    window.addEventListener('matcha-cart-change', handleCartChange)
+    return () => {
+      window.removeEventListener('matcha-cart-change', handleCartChange)
+    }
+  }, [authUser])
+
+  const handleLogout = async () => {
+    try {
+      await signOut()
+    } catch {
+      // Ignore API failure, proceed with local logout
+    }
+
     clearAuthUser()
 
-    if (window.location.pathname === '/profile') {
+    if (window.location.pathname === '/profile' || window.location.pathname === '/cart' || window.location.pathname === '/order-history') {
       window.history.pushState({}, '', '/')
       window.dispatchEvent(new PopStateEvent('popstate'))
     }
@@ -100,7 +135,7 @@ function Header() {
             <circle cx="10" cy="19" r="1.5" fill="currentColor" />
             <circle cx="16" cy="19" r="1.5" fill="currentColor" />
           </svg>
-          <span className="nav-cart-badge">3</span>
+          {cartCount > 0 && <span className="nav-cart-badge">{cartCount}</span>}
         </a>
 
         <button className="nav-icon-btn" type="button" aria-label="Thông báo">

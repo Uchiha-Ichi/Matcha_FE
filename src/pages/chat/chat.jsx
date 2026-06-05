@@ -1,90 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
+import { io } from 'socket.io-client'
 import Header from '../../components/Header.jsx'
+import { getAuthUser } from '../../utils/auth.js'
 import './chat.css'
-
-const conversations = [
-  {
-    id: 1,
-    name: 'Minh Lens Studio',
-    role: 'Nhiếp ảnh',
-    status: 'Đang online',
-    lastMessage: 'Mình gửi bạn moodboard trước buổi chụp nhé.',
-    time: '20:08',
-    unread: 2,
-    avatar: 'https://i.pravatar.cc/120?u=chat-minh-lens',
-    booking: 'Gói chụp nàng thơ ngoài trời',
-    messages: [
-      {
-        id: 1,
-        from: 'partner',
-        text: 'Chào bạn, mình đã nhận được ý tưởng nàng thơ ở Hồ Tây rồi nhé.',
-        time: '19:42',
-      },
-      {
-        id: 2,
-        from: 'me',
-        text: 'Mình muốn tone ảnh nhẹ, hơi vintage và ưu tiên ánh hoàng hôn.',
-        time: '19:45',
-      },
-      {
-        id: 3,
-        from: 'partner',
-        text: 'Hợp lắm. Mình đề xuất chụp từ 16:30, chuẩn bị váy trắng hoặc be sẽ lên màu rất đẹp.',
-        time: '19:48',
-      },
-      {
-        id: 4,
-        from: 'partner',
-        text: 'Mình gửi bạn moodboard trước buổi chụp nhé.',
-        time: '20:08',
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: 'Lan Beauty',
-    role: 'Makeup Artist',
-    status: 'Trả lời trong vài phút',
-    lastMessage: 'Tone makeup trong trẻo sẽ hợp concept này.',
-    time: '18:21',
-    unread: 0,
-    avatar: 'https://i.pravatar.cc/120?u=chat-lan-beauty',
-    booking: 'Makeup tone trong trẻo',
-    messages: [
-      {
-        id: 1,
-        from: 'partner',
-        text: 'Tone makeup trong trẻo sẽ hợp concept này.',
-        time: '18:21',
-      },
-      {
-        id: 2,
-        from: 'me',
-        text: 'Bạn có thể dùng son màu hồng đất nhẹ được không?',
-        time: '18:24',
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: 'Matcha Support',
-    role: 'Hỗ trợ',
-    status: 'Luôn sẵn sàng',
-    lastMessage: 'Bạn cần mình hỗ trợ ghép ekip không?',
-    time: 'Hôm qua',
-    unread: 0,
-    avatar: 'https://i.pravatar.cc/120?u=chat-matcha-support',
-    booking: 'Tư vấn đặt lịch',
-    messages: [
-      {
-        id: 1,
-        from: 'partner',
-        text: 'Bạn cần mình hỗ trợ ghép ekip không?',
-        time: 'Hôm qua',
-      },
-    ],
-  },
-]
 
 const navigate = (event, path) => {
   event.preventDefault()
@@ -98,45 +16,232 @@ const navigate = (event, path) => {
 }
 
 function Chat() {
-  const [activeConversationId, setActiveConversationId] = useState(conversations[0].id)
+  const authUser = getAuthUser()
+  const authUserId = authUser?.id
+  const socketRef = useRef(null)
+
+  const [conversations, setConversations] = useState([])
+  const [activeConversationId, setActiveConversationId] = useState(null)
+  const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
-  const [localMessages, setLocalMessages] = useState({})
+  const [connected, setConnected] = useState(false)
+  const [loadingConv, setLoadingConv] = useState(true)
+  const [loadingMsg, setLoadingMsg] = useState(false)
 
-  const activeConversation = conversations.find((item) => item.id === activeConversationId)
+  // Đọc state redirect từ OrderHistory hoặc ServiceDetail
+  const redirectState = useMemo(() => {
+    try {
+      return window.history.state || null
+    } catch {
+      return null
+    }
+  }, [])
 
-  const messages = useMemo(() => {
-    if (!activeConversation) return []
-    return [
-      ...activeConversation.messages,
-      ...(localMessages[activeConversation.id] ?? []),
-    ]
-  }, [activeConversation, localMessages])
+  const activeConversationIdRef = useRef(activeConversationId)
 
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId
+  }, [activeConversationId])
+
+  // 1. Kết nối Socket.io
+  useEffect(() => {
+    if (!authUserId) {
+      window.history.pushState({}, '', '/login')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+      return
+    }
+
+    setLoadingConv(true)
+    // Kết nối qua proxy `/socket.io` tới backend socket server (tránh cookie cross-origin)
+    const socket = io('/chat', {
+      transports: ['websocket'],
+      withCredentials: true
+    })
+
+    socketRef.current = socket
+
+    socket.on('connect', () => {
+      setConnected(true)
+      console.log('[Chat] Connected to server socket successfully')
+
+      // Nếu có redirectState chuyển từ trang khác sang (muốn tạo/tìm room chat)
+      if (redirectState && redirectState.partnerId) {
+        console.log('[Chat] Creating or getting conversation with partner:', redirectState.partnerId)
+        socket.emit('create_conversation', {
+          partner_id: Number(redirectState.partnerId),
+          booking_id: redirectState.bookingId ? Number(redirectState.bookingId) : undefined
+        })
+      } else {
+        // Lấy danh sách hội thoại
+        console.log('[Chat] Getting conversations list')
+        socket.emit('get_conversations')
+      }
+    })
+
+    socket.on('disconnect', (reason) => {
+      setConnected(false)
+      console.warn('[Chat] Disconnected from socket server:', reason)
+    })
+
+    socket.on('connect_error', (error) => {
+      console.error('[Chat] Socket connection error:', error)
+    })
+
+    socket.on('exception', (error) => {
+      console.error('[Chat] Socket exception from server:', error)
+    })
+
+    // Nhận danh sách conversations
+    socket.on('conversations_list', (data) => {
+      console.log('[Chat] Received conversations_list payload:', data)
+      if (!data) {
+        console.warn('[Chat] conversations_list received null/undefined data')
+        setLoadingConv(false)
+        return
+      }
+      const convs = data.conversations || []
+      setConversations(convs)
+      setLoadingConv(false)
+
+      const currentActiveId = activeConversationIdRef.current
+      if (convs.length > 0 && !currentActiveId && (!redirectState || !redirectState.partnerId)) {
+        setActiveConversationId(convs[0].id)
+      }
+    })
+
+    // Nhận conversation vừa tạo
+    socket.on('conversation_ready', (data) => {
+      console.log('[Chat] Received conversation_ready payload:', data)
+      if (!data) {
+        console.warn('[Chat] conversation_ready received null/undefined data')
+        setLoadingConv(false)
+        return
+      }
+      const newConv = data.conversation
+      if (newConv) {
+        setConversations(prev => {
+          const filtered = prev.filter(c => c.id !== newConv.id)
+          return [newConv, ...filtered]
+        })
+        setActiveConversationId(newConv.id)
+      }
+      setLoadingConv(false)
+      // Clear state so reload doesn't trigger creation again
+      window.history.replaceState(null, '')
+    })
+
+    // Nhận lịch sử tin nhắn
+    socket.on('messages_history', (data) => {
+      console.log('[Chat] Received messages_history payload:', data)
+      if (!data) {
+        console.warn('[Chat] messages_history received null/undefined data')
+        setLoadingMsg(false)
+        return
+      }
+      // Vì tin nhắn trả về order desc (mới nhất trước), ta reverse để render từ cũ -> mới
+      const history = [...(data.messages || [])].reverse()
+      setMessages(history)
+      setLoadingMsg(false)
+    })
+
+    // Nhận tin nhắn mới
+    socket.on('new_message', (message) => {
+      console.log('[Chat] Received new_message payload:', message)
+      if (!message) return
+      const currentActiveId = activeConversationIdRef.current
+      if (message.conversation_id === currentActiveId) {
+        setMessages(prev => [...prev, message])
+        // Tự động mark read
+        socket.emit('mark_read', { conversation_id: currentActiveId })
+      }
+
+      // Cập nhật last message trong danh sách conversations
+      setConversations(prev => {
+        return prev.map(c => {
+          if (c.id === message.conversation_id) {
+            return {
+              ...c,
+              last_message: message.content,
+              updated_at: new Date().toISOString()
+            }
+          }
+          return c
+        }).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+      })
+    })
+
+    return () => {
+      console.log('[Chat] Cleaning up socket connection')
+      socket.disconnect()
+    }
+  }, [authUserId])
+
+  const activeConversation = useMemo(() => {
+    return conversations.find((item) => item.id === activeConversationId)
+  }, [conversations, activeConversationId])
+
+  // 2. Khi activeConversationId thay đổi -> Join room & Lấy tin nhắn
+  useEffect(() => {
+    if (!socketRef.current || !activeConversationId) return
+
+    setLoadingMsg(true)
+    const socket = socketRef.current
+
+    // Join room mới
+    socket.emit('join_room', { conversation_id: activeConversationId })
+    // Lấy tin nhắn
+    socket.emit('get_messages', { conversation_id: activeConversationId, page: 1 })
+    // Đánh dấu đã đọc
+    socket.emit('mark_read', { conversation_id: activeConversationId })
+
+    return () => {
+      // Rời room cũ
+      socket.emit('leave_room', { conversation_id: activeConversationId })
+    }
+  }, [activeConversationId])
+
+  // 3. Gửi tin nhắn
   const handleSend = (event) => {
     event.preventDefault()
 
     const cleanDraft = draft.trim()
-    if (!cleanDraft || !activeConversation) return
+    if (!cleanDraft || !activeConversationId || !socketRef.current) return
 
-    const now = new Intl.DateTimeFormat('vi-VN', {
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date())
+    socketRef.current.emit('send_message', {
+      conversation_id: activeConversationId,
+      content: cleanDraft,
+      type: 'text'
+    })
 
-    setLocalMessages((current) => ({
-      ...current,
-      [activeConversation.id]: [
-        ...(current[activeConversation.id] ?? []),
-        {
-          id: `${activeConversation.id}-${Date.now()}`,
-          from: 'me',
-          text: cleanDraft,
-          time: now,
-        },
-      ],
-    }))
     setDraft('')
   }
+
+  // Phân tích thông tin hiển thị của đối phương trong conversation
+  const getPartnerDisplay = (conv) => {
+    if (!conv) return { name: 'Người dùng', avatar: 'https://i.pravatar.cc/120', role: '—' }
+    
+    // Nếu user hiện tại là customer, hiển thị đối tác (partner) và ngược lại
+    const isCurrentUserCustomer = authUser?.role?.toLowerCase() !== 'partner'
+    
+    if (isCurrentUserCustomer) {
+      const partner = conv.partner || {}
+      const user = partner.user || {}
+      return {
+        name: partner.band_name || user.full_name || 'Matcha Partner',
+        avatar: user.avatar_src || `https://i.pravatar.cc/120?u=partner-${partner.id}`,
+        role: 'Ekip Matcha'
+      }
+    } else {
+      const client = conv.user || {}
+      return {
+        name: client.full_name || client.email || 'Khách hàng',
+        avatar: client.avatar_src || `https://i.pravatar.cc/120?u=client-${client.id}`,
+        role: 'Khách hàng'
+      }
+    }
+  }
+
+  if (!authUser) return null
 
   return (
     <main className="chat-page">
@@ -147,7 +252,7 @@ function Chat() {
           <div className="chat-sidebar__heading">
             <div>
               <span>Tin nhắn</span>
-              <h1>Chat</h1>
+              <h1>Chat {connected ? '' : '(Mất kết nối)'}</h1>
             </div>
             <a
               className="chat-sidebar__back"
@@ -169,91 +274,109 @@ function Chat() {
 
           <label className="chat-search">
             <span aria-hidden="true">⌕</span>
-            <input type="text" placeholder="Tìm studio, makeup, hỗ trợ..." />
+            <input type="text" placeholder="Tìm kiếm hội thoại..." />
           </label>
 
           <div className="chat-conversation-list">
-            {conversations.map((conversation) => (
-              <button
-                key={conversation.id}
-                type="button"
-                className={`chat-conversation ${
-                  conversation.id === activeConversationId ? 'chat-conversation--active' : ''
-                }`}
-                onClick={() => setActiveConversationId(conversation.id)}
-              >
-                <img src={conversation.avatar} alt={conversation.name} />
-                <div>
-                  <strong>{conversation.name}</strong>
-                  <p>{conversation.lastMessage}</p>
-                </div>
-                <span>{conversation.time}</span>
-                {conversation.unread > 0 && <em>{conversation.unread}</em>}
-              </button>
-            ))}
+            {loadingConv ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#6f6257' }}>
+                Đang tải danh sách hội thoại...
+              </div>
+            ) : conversations.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#6f6257', fontSize: '14px' }}>
+                Chưa có hội thoại nào. Bạn có thể nhắn tin bằng cách click "Nhắn ekip" ở đơn đặt lịch.
+              </div>
+            ) : (
+              conversations.map((conversation) => {
+                const partner = getPartnerDisplay(conversation)
+                return (
+                  <button
+                    key={conversation.id}
+                    type="button"
+                    className={`chat-conversation ${
+                      conversation.id === activeConversationId ? 'chat-conversation--active' : ''
+                    }`}
+                    onClick={() => setActiveConversationId(conversation.id)}
+                  >
+                    <img src={partner.avatar} alt={partner.name} />
+                    <div style={{ flex: 1, textAlign: 'left' }}>
+                      <strong>{partner.name}</strong>
+                      <p style={{
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: '180px'
+                      }}>
+                        {conversation.last_message || 'Chưa có tin nhắn'}
+                      </p>
+                    </div>
+                    <span>
+                      {conversation.updated_at
+                        ? new Date(conversation.updated_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                        : ''}
+                    </span>
+                  </button>
+                )
+              })
+            )}
           </div>
         </aside>
 
-        {activeConversation && (
+        {activeConversation ? (
           <section className="chat-panel">
             <header className="chat-panel__header">
               <div className="chat-panel__profile">
-                <img src={activeConversation.avatar} alt={activeConversation.name} />
+                <img
+                  src={getPartnerDisplay(activeConversation).avatar}
+                  alt={getPartnerDisplay(activeConversation).name}
+                />
                 <div>
-                  <h2>{activeConversation.name}</h2>
+                  <h2>{getPartnerDisplay(activeConversation).name}</h2>
                   <p>
-                    {activeConversation.role} · {activeConversation.status}
+                    {getPartnerDisplay(activeConversation).role} · Đang hoạt động
                   </p>
                 </div>
               </div>
-
-              <div className="chat-panel__tools">
-                <button type="button" aria-label="Gọi thoại">
-                  <svg viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M8 5.5 10.2 10l-1.5 1.2c1 2 2.6 3.6 4.6 4.6l1.2-1.5L19 16.5v2.1c0 1-.8 1.8-1.8 1.7C9.6 19.8 4.2 14.4 3.7 6.8 3.6 5.8 4.4 5 5.4 5H8Z"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-                <button type="button" aria-label="Thông tin đặt lịch">
-                  <svg viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M12 11v5m0-8h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-              </div>
             </header>
 
-            <div className="chat-booking-strip">
-              <span>Đang trao đổi về</span>
-              <strong>{activeConversation.booking}</strong>
-              <a href="/service-detail" onClick={(event) => navigate(event, '/service-detail')}>
-                Xem dịch vụ
-              </a>
-            </div>
+            {activeConversation.booking && (
+              <div className="chat-booking-strip">
+                <span>Đang trao đổi về</span>
+                <strong>{activeConversation.booking.details?.[0]?.partner_concept?.concept?.name || 'Dịch vụ chụp ảnh'}</strong>
+                <a
+                  href="/order-history"
+                  onClick={(event) => navigate(event, '/order-history')}
+                >
+                  Xem đơn hàng
+                </a>
+              </div>
+            )}
 
             <div className="chat-messages">
-              <div className="chat-day-divider">Hôm nay</div>
-              {messages.map((message) => (
-                <article
-                  key={message.id}
-                  className={`chat-bubble ${
-                    message.from === 'me' ? 'chat-bubble--me' : 'chat-bubble--partner'
-                  }`}
-                >
-                  <p>{message.text}</p>
-                  <span>{message.time}</span>
-                </article>
-              ))}
+              {loadingMsg ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#6f6257' }}>
+                  Đang tải tin nhắn...
+                </div>
+              ) : messages.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#6f6257', fontSize: '14px' }}>
+                  Bắt đầu cuộc trò chuyện. Hãy gửi tin nhắn đầu tiên!
+                </div>
+              ) : (
+                messages.map((message) => {
+                  const isMe = message.user?.id === authUser.id
+                  return (
+                    <article
+                      key={message.id}
+                      className={`chat-bubble ${isMe ? 'chat-bubble--me' : 'chat-bubble--partner'}`}
+                    >
+                      <p>{message.content}</p>
+                      <span>
+                        {new Date(message.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </article>
+                  )
+                })
+              )}
             </div>
 
             <form className="chat-composer" onSubmit={handleSend}>
@@ -286,6 +409,14 @@ function Chat() {
                 </svg>
               </button>
             </form>
+          </section>
+        ) : (
+          <section className="chat-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6f6257' }}>
+            <div style={{ textAlign: 'center' }}>
+              <span style={{ fontSize: '48px', display: 'block', marginBottom: '16px' }}>💬</span>
+              <h3>Không có cuộc hội thoại nào đang mở</h3>
+              <p style={{ fontSize: '14px', marginTop: '8px' }}>Chọn một hội thoại ở bên trái để bắt đầu nhắn tin.</p>
+            </div>
           </section>
         )}
       </section>
