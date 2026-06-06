@@ -1,0 +1,226 @@
+.partner-service-detail-grid {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.partner-service-config-form,
+.partner-service-image-manager {
+  border: 1px solid #ddd1c4;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 18px 34px rgba(110, 83, 43, 0.08);
+  padding: 24px;
+}
+
+.partner-service-config-form {
+  align-self: start;
+  display: grid;
+  gap: 16px;
+}
+
+.partner-service-config-form h2,
+.ps-image-manager-header h2 {
+  margin: 0 0 16px 0;
+  color: #171411;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.partner-service-config-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.partner-service-config-form label span {
+  color: #735f52;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.partner-service-config-form input,
+.partner-service-config-form select {
+  width: 100%;
+  border: 1px solid #e2d7c9;
+  border-radius: 16px;
+  background: #fcfaf6;
+  color: #171411;
+  padding: 0 13px;
+  font-size: 14px;
+  font-weight: 700;
+  min-height: 46px;
+  box-sizing: border-box;
+}
+
+.partner-service-config-form button {
+  min-height: 46px;
+  border-radius: 999px;
+  border: none;
+  background: #1f1713;
+  color: #fff;
+  padding: 0 15px;
+  font-weight: 800;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: opacity 0.2s ease;
+}
+
+.partner-service-config-form button:hover {
+  opacity: 0.9;
+}
+
+/* ── Image Manager ── */
+.ps-image-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f1ebd9;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+}
+
+.ps-image-manager-header h2 {
+  margin: 0;
+}
+
+.ps-upload-image-label {
+  background: #f4ece1;
+  border: 1px dashed #c0b09d;
+  color: #6f584b;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  transition: all 0.2s ease;
+}
+
+.ps-upload-image-label:hover {
+  background: #ecdcc9;
+  border-color: #a4917a;
+}
+
+.ps-images-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.ps-image-card {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #e2d7c9;
+  background: #fdfcf7;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ps-image-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ps-image-card.is-primary {
+  border: 2.5px solid #d4af37;
+  box-shadow: 0 8px 20px rgba(212, 175, 55, 0.2);
+}
+
+.ps-primary-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: #d4af37;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Actions Overlay on Hover */
+.ps-image-actions-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.ps-image-card:hover .ps-image-actions-overlay {
+  opacity: 1;
+}
+
+.ps-image-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(110, 83, 43, 0.12);
+}
+
+.ps-action-btn-primary,
+.ps-action-btn-delete {
+  width: 85%;
+  min-height: 34px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.ps-action-btn-primary {
+  background: #fff;
+  color: #171411;
+}
+
+.ps-action-btn-delete {
+  background: #dc3545;
+  color: #fff;
+}
+
+.ps-action-btn-primary:hover,
+.ps-action-btn-delete:hover {
+  transform: scale(1.03);
+}
+
+.ps-gallery-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px 20px;
+  color: #8b7d72;
+  font-style: italic;
+}
+
+.ps-back-btn {
+  border: 1px solid #ded2c3;
+  background: #fff;
+  color: #171411;
+  min-height: 42px;
+  border-radius: 999px;
+  padding: 0 20px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.ps-back-btn:hover {
+  background: #fcfaf6;
+}
+
+@media (max-width: 960px) {
+  .partner-service-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,22 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getBookings, createPaymentUrl } from '../../utils/api.js'
+import { getBookings, mockConfirmPayment, updateBookingStatus, getPromotions, applyBookingPromotion } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
 import './order_history.css'
 
 const statusMeta = {
-  all:       { label: 'Tất cả' },
-  pending:   { label: 'Chờ xác nhận', tone: 'warning' },
-  confirmed: { label: 'Đã xác nhận',  tone: 'info'    },
-  completed: { label: 'Hoàn tất',     tone: 'success'  },
-  cancelled: { label: 'Đã hủy',       tone: 'muted'    },
+  all: { label: 'Tất cả' },
+  pending: { label: 'Chờ xác nhận', tone: 'warning' },
+  confirmed: { label: 'Đã xác nhận', tone: 'info' },
+  completed: { label: 'Hoàn tất', tone: 'success' },
+  cancelled: { label: 'Đã hủy', tone: 'muted' },
 }
 
 const paymentMeta = {
-  paid:          'Đã thanh toán',
-  partially_paid:'Đã đặt cọc',
-  unpaid:        'Chưa thanh toán',
+  paid: 'Đã thanh toán',
+  partially_paid: 'Đã đặt cọc',
+  unpaid: 'Chưa thanh toán',
 }
 
 const imageFallbacks = [
@@ -49,11 +49,11 @@ const navigate = (event, path) => {
 
 /** Normalise booking from API into display shape */
 function normaliseBooking(booking, index) {
-  const detail = booking.booking_details?.[0]
+  const detail = booking.details?.[0]
   const pc = detail?.partner_concept ?? {}
   const concept = pc.concept ?? {}
   const partner = booking.partner ?? {}
-  const payment = booking.payment ?? null
+  const payment = booking.payments?.[0] ?? null  // payments là array trong entity
 
   // pick image: partner concept image → partner cover → fallback
   const image =
@@ -77,6 +77,7 @@ function normaliseBooking(booking, index) {
     remaining: Number(booking.remaining_amount ?? 0),
     promotionCode: booking.promotion?.code ?? null,
     image,
+    resultLink: booking.result_link ?? null,
   }
 }
 
@@ -106,7 +107,122 @@ function OrderHistory() {
   const [activeStatus, setActiveStatus] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [paymentAlert, setPaymentAlert] = useState(null)
-  const [paymentLoadingId, setPaymentLoadingId] = useState(null)
+  const [payingOrder, setPayingOrder] = useState(null)
+  const [payingUnpaidOrder, setPayingUnpaidOrder] = useState(null)
+  const [cancellingOrder, setCancellingOrder] = useState(null)
+  const [processingPayment, setProcessingPayment] = useState(false)
+  const [processingCancel, setProcessingCancel] = useState(false)
+
+  // Promo code states for payingUnpaidOrder modal
+  const [promoCode, setPromoCode] = useState('')
+  const [validatingPromo, setValidatingPromo] = useState(false)
+  const [promoError, setPromoError] = useState(null)
+  const [promotions, setPromotions] = useState([])
+  const [loadingPromos, setLoadingPromos] = useState(false)
+
+  const refreshOrders = async () => {
+    try {
+      const data = await getBookings({ role: 'customer' })
+      setRawOrders(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Lỗi khi tải lại danh sách đơn hàng:', err)
+    }
+  }
+
+  const handleConfirmPayRemaining = async () => {
+    if (!payingOrder) return
+    setProcessingPayment(true)
+    try {
+      await mockConfirmPayment(payingOrder.id, 'full')
+      setPaymentAlert({
+        status: 'success',
+        message: `Thanh toán thành công số tiền còn lại ${formatPrice(payingOrder.remaining)} cho đơn hàng ${payingOrder.orderCode}!`
+      })
+      await refreshOrders()
+      setPayingOrder(null)
+    } catch (err) {
+      alert(`Thanh toán thất bại: ${err.message}`)
+    } finally {
+      setProcessingPayment(false)
+    }
+  }
+
+  const handleConfirmPayUnpaid = async (type) => {
+    // type: 'deposit' | 'full'
+    if (!payingUnpaidOrder) return
+    setProcessingPayment(true)
+    try {
+      await mockConfirmPayment(payingUnpaidOrder.id, type)
+      const payAmount = type === 'deposit' ? payingUnpaidOrder.deposit : (payingUnpaidOrder.price - payingUnpaidOrder.discount)
+      setPaymentAlert({
+        status: 'success',
+        message: `Thanh toán ${type === 'deposit' ? 'đặt cọc' : '100%'} thành công số tiền ${formatPrice(payAmount)} cho đơn hàng ${payingUnpaidOrder.orderCode}!`
+      })
+      await refreshOrders()
+      setPayingUnpaidOrder(null)
+    } catch (err) {
+      alert(`Thanh toán thất bại: ${err.message}`)
+    } finally {
+      setProcessingPayment(false)
+    }
+  }
+
+  const handleConfirmCancel = async () => {
+    if (!cancellingOrder) return
+    setProcessingCancel(true)
+    try {
+      await updateBookingStatus(cancellingOrder.id, 'cancelled')
+      setPaymentAlert({
+        status: 'success',
+        message: `Đã hủy thành công đơn hàng ${cancellingOrder.orderCode}.`
+      })
+      await refreshOrders()
+      setCancellingOrder(null)
+    } catch (err) {
+      alert(`Hủy đơn hàng thất bại: ${err.message}`)
+    } finally {
+      setProcessingCancel(false)
+    }
+  }
+
+  const handleApplyPromoToBooking = async (code) => {
+    if (!payingUnpaidOrder) return
+    setValidatingPromo(true)
+    setPromoError(null)
+    try {
+      const updatedRawBooking = await applyBookingPromotion(payingUnpaidOrder.id, code)
+      const updatedBooking = normaliseBooking(updatedRawBooking, 0)
+      setPayingUnpaidOrder(updatedBooking)
+      setPromoCode('')
+      await refreshOrders()
+    } catch (err) {
+      setPromoError(err.message || 'Mã giảm giá không hợp lệ')
+    } finally {
+      setValidatingPromo(false)
+    }
+  }
+
+
+
+  // Load promotions when the payingUnpaidOrder modal is shown
+  useEffect(() => {
+    if (!payingUnpaidOrder) return
+
+    setPromoCode('')
+    setPromoError(null)
+
+    // Load available promotions
+    setLoadingPromos(true)
+    getPromotions()
+      .then((data) => {
+        const active = (data || []).filter(
+          (p) => p.is_active && (!p.expired_at || new Date(p.expired_at) > new Date())
+        )
+        setPromotions(active)
+      })
+      .catch((err) => console.error('Lỗi khi tải mã giảm giá:', err))
+      .finally(() => setLoadingPromos(false))
+  }, [payingUnpaidOrder])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -123,17 +239,6 @@ function OrderHistory() {
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
-
-  const handlePay = async (bookingId, paymentType) => {
-    setPaymentLoadingId(`${bookingId}-${paymentType}`)
-    try {
-      const { url } = await createPaymentUrl(bookingId, paymentType)
-      window.location.href = url
-    } catch (err) {
-      alert('Không thể khởi tạo thanh toán: ' + err.message)
-      setPaymentLoadingId(null)
-    }
-  }
 
   const handleChatClick = (event, order) => {
     event.preventDefault()
@@ -154,7 +259,7 @@ function OrderHistory() {
       try {
         setLoading(true)
         setError(null)
-        const data = await getBookings()
+        const data = await getBookings({ role: 'customer' })
         if (!cancelled) setRawOrders(Array.isArray(data) ? data : [])
       } catch (err) {
         if (!cancelled) setError(err.message)
@@ -175,7 +280,7 @@ function OrderHistory() {
     const matchesStatus = activeStatus === 'all' || order.status === activeStatus
     const hay = `${order.orderCode} ${order.serviceName} ${order.partnerName}`.toLowerCase()
     return matchesStatus && hay.includes(searchTerm.trim().toLowerCase())
-  })
+  }).reverse()
 
   const totalSpent = orders
     .filter((o) => o.status === 'completed')
@@ -265,7 +370,9 @@ function OrderHistory() {
                 const statusInfo = statusMeta[order.status] ?? statusMeta.pending
                 return (
                   <article key={order.id} className="order-card">
-                    <img src={order.image} alt={order.serviceName} />
+                    <div className="order-card__img-wrapper">
+                      <img src={order.image} alt={order.serviceName} />
+                    </div>
 
                     <div className="order-card__body">
                       <div className="order-card__top">
@@ -292,70 +399,113 @@ function OrderHistory() {
                         <div><dt>Còn lại</dt><dd>{formatPrice(order.remaining)}</dd></div>
                       </dl>
 
-                      <div className="order-card__actions" style={{ flexWrap: 'wrap', gap: '8px' }}>
+                      <div className="order-card__actions" style={{ flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                         {order.promotionCode && (
                           <span className="order-card__promo">Mã giảm: {order.promotionCode}</span>
                         )}
                         <a href="/chat" onClick={(event) => handleChatClick(event, order)}>
                           Nhắn ekip
                         </a>
+                        {order.resultLink && (
+                          <a
+                            href={order.resultLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              background: '#b24b2a',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '8px 16px',
+                              borderRadius: '999px',
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              transition: 'background 0.2s',
+                            }}
+                            onMouseOver={(e) => { e.currentTarget.style.background = '#d15c38' }}
+                            onMouseOut={(e) => { e.currentTarget.style.background = '#b24b2a' }}
+                          >
+                            📸 Xem ảnh / sản phẩm
+                          </a>
+                        )}
 
-                        {order.paymentStatus === 'unpaid' && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handlePay(order.id, 'deposit')}
-                              disabled={paymentLoadingId !== null}
-                              style={{
-                                background: '#c7f6c6',
-                                color: '#1a5f1a',
-                                border: 'none',
-                                padding: '8px 16px',
-                                borderRadius: '999px',
-                                fontSize: '13px',
-                                fontWeight: '800',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {paymentLoadingId === `${order.id}-deposit` ? 'Đang tải...' : 'Đặt cọc 30% VNPay'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handlePay(order.id, 'full')}
-                              disabled={paymentLoadingId !== null}
-                              style={{
-                                background: '#1f1713',
-                                color: '#fff',
-                                border: 'none',
-                                padding: '8px 16px',
-                                borderRadius: '999px',
-                                fontSize: '13px',
-                                fontWeight: '800',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {paymentLoadingId === `${order.id}-full` ? 'Đang tải...' : 'Thanh toán 100%'}
-                            </button>
-                          </>
+                        {/* Spacer to align subsequent buttons to the right */}
+                        <div style={{ marginLeft: 'auto' }} />
+
+                        {order.status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => setCancellingOrder(order)}
+                            style={{
+                              background: '#fff',
+                              color: '#b24b2a',
+                              border: '1.5px solid #f5c6c0',
+                              padding: '7px 16px',
+                              borderRadius: '999px',
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.background = '#fff3f0'
+                              e.currentTarget.style.borderColor = '#b24b2a'
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.background = '#fff'
+                              e.currentTarget.style.borderColor = '#f5c6c0'
+                            }}
+                          >
+                            Hủy đơn
+                          </button>
+                        )}
+
+                        {order.status === 'pending' && order.paymentStatus === 'unpaid' && (
+                          <button
+                            type="button"
+                            className="order-card__btn-pay"
+                            onClick={() => setPayingUnpaidOrder(order)}
+                            style={{
+                              background: '#009b72',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '8px 16px',
+                              borderRadius: '999px',
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                            }}
+                            onMouseOver={(e) => { e.currentTarget.style.background = '#007d5b' }}
+                            onMouseOut={(e) => { e.currentTarget.style.background = '#009b72' }}
+                          >
+                            Thanh toán ngay
+                          </button>
                         )}
 
                         {order.paymentStatus === 'partially_paid' && (
                           <button
                             type="button"
-                            onClick={() => handlePay(order.id, 'full')}
-                            disabled={paymentLoadingId !== null}
+                            className="order-card__btn-pay"
+                            onClick={() => setPayingOrder(order)}
                             style={{
                               background: '#1f1713',
                               color: '#fff',
                               border: 'none',
                               padding: '8px 16px',
                               borderRadius: '999px',
-                              fontSize: '13px',
-                              fontWeight: '800',
-                              cursor: 'pointer'
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
                             }}
+                            onMouseOver={(e) => { e.currentTarget.style.background = '#3c2e27' }}
+                            onMouseOut={(e) => { e.currentTarget.style.background = '#1f1713' }}
                           >
-                            {paymentLoadingId === `${order.id}-full` ? 'Đang tải...' : 'Thanh toán 70% còn lại'}
+                            Thanh toán nốt ({formatPrice(order.remaining)})
                           </button>
                         )}
                       </div>
@@ -457,6 +607,472 @@ function OrderHistory() {
             >
               Đóng
             </button>
+          </div>
+        </div>
+      )}
+
+      {payingOrder && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '24px',
+            maxWidth: '480px',
+            width: '100%',
+            padding: '30px',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+            border: '1px solid #e2d7c9'
+          }}>
+            <h3 style={{
+              fontSize: '20px',
+              fontWeight: '800',
+              marginBottom: '16px',
+              color: '#1f1713'
+            }}>
+              Thanh toán số tiền còn lại
+            </h3>
+            <p style={{
+              fontSize: '15px',
+              color: '#6f6257',
+              lineHeight: '1.6',
+              marginBottom: '20px'
+            }}>
+              Bạn có chắc chắn muốn thanh toán số tiền còn lại cho đơn hàng <strong>{payingOrder.orderCode}</strong>?
+            </p>
+            <div style={{
+              background: '#fcfbf9',
+              border: '1px solid #e2d7c9',
+              borderRadius: '16px',
+              padding: '16px',
+              marginBottom: '24px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#8c7e74' }}>Dịch vụ:</span>
+                <span style={{ fontWeight: '600', color: '#1f1713' }}>{payingOrder.serviceName}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#8c7e74' }}>Số tiền còn lại:</span>
+                <span style={{ fontWeight: '800', color: '#b24b2a' }}>{formatPrice(payingOrder.remaining)}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setPayingOrder(null)}
+                disabled={processingPayment}
+                style={{
+                  background: '#f5f0eb',
+                  color: '#6f6257',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '999px',
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPayRemaining}
+                disabled={processingPayment}
+                style={{
+                  background: '#1f1713',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '999px',
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                {processingPayment ? 'Đang xử lý...' : 'Xác nhận'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {payingUnpaidOrder && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '24px',
+            maxWidth: '480px',
+            width: '100%',
+            padding: '30px',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+            border: '1px solid #e2d7c9',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <h3 style={{
+              fontSize: '20px',
+              fontWeight: '800',
+              marginBottom: '16px',
+              color: '#1f1713'
+            }}>
+              Thanh toán đơn hàng
+            </h3>
+            <p style={{
+              fontSize: '15px',
+              color: '#6f6257',
+              lineHeight: '1.6',
+              marginBottom: '20px'
+            }}>
+              Vui lòng chọn hình thức thanh toán cho đơn hàng <strong>{payingUnpaidOrder.orderCode}</strong> ({payingUnpaidOrder.serviceName}):
+            </p>
+
+            {/* Price breakdown */}
+            <div className="sd-modal__price-breakdown" style={{
+              background: '#fbf9f6',
+              border: '1.5px solid #e8decb',
+              borderRadius: '20px',
+              padding: '16px',
+              marginBottom: '20px',
+              display: 'grid',
+              gap: '10px'
+            }}>
+              <div className="sd-price-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#6c584c' }}>
+                <span>Tổng tiền:</span>
+                <span>{formatPrice(payingUnpaidOrder.price)}</span>
+              </div>
+              {payingUnpaidOrder.discount > 0 && (
+                <div className="sd-price-row sd-price-row--discount" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#c0392b', fontWeight: '700' }}>
+                  <span>Giảm giá:</span>
+                  <span>-{formatPrice(payingUnpaidOrder.discount)}</span>
+                </div>
+              )}
+              <div className="sd-price-row sd-price-row--total" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #e8decb', paddingTop: '10px', marginTop: '4px', color: '#161310', fontSize: '15px', fontWeight: '700' }}>
+                <span>Thành tiền:</span>
+                <strong style={{ fontSize: '18px', color: '#009b72' }}>{formatPrice(payingUnpaidOrder.price - payingUnpaidOrder.discount)}</strong>
+              </div>
+            </div>
+
+            {/* Promo Container */}
+            <div className="sd-modal__promo-container" style={{
+              marginBottom: '24px',
+              padding: '14px 16px',
+              background: '#fff',
+              border: '1.5px dashed #d6c5b0',
+              borderRadius: '20px'
+            }}>
+              {!payingUnpaidOrder.promotionCode ? (
+                <>
+                  <form
+                    className="sd-modal__promo-form"
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      const code = promoCode.trim().toUpperCase()
+                      if (code) handleApplyPromoToBooking(code)
+                    }}
+                    style={{ display: 'flex', gap: '10px' }}
+                  >
+                    <input
+                      type="text"
+                      placeholder="Nhập mã giảm giá (VD: MATCHAFREE)..."
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value)}
+                      disabled={validatingPromo}
+                      style={{
+                        flex: 1,
+                        minHeight: '40px',
+                        border: '1px solid #d6c5b0',
+                        borderRadius: '12px',
+                        background: '#faf8f5',
+                        padding: '0 12px',
+                        fontSize: '13.5px',
+                        color: '#1f1713',
+                        fontWeight: '600',
+                        textTransform: 'uppercase'
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={validatingPromo || !promoCode.trim()}
+                      style={{
+                        padding: '0 16px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: '#1f1713',
+                        color: '#fff',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {validatingPromo ? 'Áp dụng...' : 'Áp dụng'}
+                    </button>
+                  </form>
+
+                  {/* List of selectable promos */}
+                  <div className="sd-modal__promos-select" style={{ marginTop: '18px', borderTop: '1px dashed #efe8df', paddingTop: '16px' }}>
+                    <h3 style={{ margin: '0 0 12px', fontSize: '13.5px', fontWeight: '700', color: '#69584c' }}>
+                      Hoặc chọn mã giảm giá khả dụng:
+                    </h3>
+                    {loadingPromos ? (
+                      <p className="sd-promos-loading" style={{ fontSize: '13px', color: '#9c8a7c', margin: 0, fontStyle: 'italic' }}>Đang tải mã giảm giá...</p>
+                    ) : promotions.length === 0 ? (
+                      <p className="sd-promos-empty" style={{ fontSize: '13px', color: '#9c8a7c', margin: 0, fontStyle: 'italic' }}>Chưa có mã giảm giá nào khả dụng.</p>
+                    ) : (
+                      <div className="sd-promos-coupon-grid" style={{ display: 'grid', gap: '10px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
+                        {promotions.map((promo) => (
+                          <button
+                            key={promo.id}
+                            type="button"
+                            className="sd-promo-coupon-card"
+                            onClick={() => handleApplyPromoToBooking(promo.code)}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              background: '#fdfcfb',
+                              border: '1px dashed #d6c5b0',
+                              borderRadius: '12px',
+                              padding: 0,
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                              textAlign: 'left'
+                            }}
+                          >
+                            <div className="sd-coupon-left" style={{
+                              flex: 1,
+                              padding: '12px 14px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'center',
+                              borderRight: '1px dashed #d6c5b0'
+                            }}>
+                              <strong style={{ fontSize: '14px', color: '#1f1713', letterSpacing: '0.03em' }}>{promo.code}</strong>
+                              <span style={{ fontSize: '11px', color: '#7b6b5d', marginTop: '4px', lineHeight: 1.3 }}>{promo.description || 'Giảm giá đặc biệt'}</span>
+                            </div>
+                            <div className="sd-coupon-right" style={{
+                              width: '90px',
+                              padding: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: 'rgba(0, 155, 114, 0.03)',
+                              color: '#009b72',
+                              flexShrink: 0
+                            }}>
+                              <strong style={{ fontSize: '14px', fontWeight: '800', display: 'block' }}>
+                                {promo.discount_percentage > 0
+                                  ? `-${promo.discount_percentage}%`
+                                  : `-${formatPrice(promo.discount_amount)}`
+                                }
+                              </strong>
+                              <span style={{
+                                fontSize: '10px',
+                                fontWeight: '700',
+                                textTransform: 'uppercase',
+                                marginTop: '4px',
+                                letterSpacing: '0.05em',
+                                background: '#009b72',
+                                color: '#fff',
+                                padding: '2px 6px',
+                                borderRadius: '4px'
+                              }}>Áp dụng</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="sd-modal__promo-active" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="sd-promo-active-badge" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: 'rgba(0, 155, 114, 0.08)',
+                    border: '1px solid rgba(0, 155, 114, 0.2)',
+                    padding: '6px 12px',
+                    borderRadius: '10px',
+                    color: '#007d5b',
+                    fontSize: '13px'
+                  }}>
+                    <span>🏷️</span>
+                    <strong>{payingUnpaidOrder.promotionCode}</strong>
+                    <span style={{ color: '#009b72', marginLeft: '6px', fontWeight: 'bold' }}>(Đã áp dụng)</span>
+                  </div>
+                </div>
+              )}
+              {promoError && <p className="sd-promo-error-msg" style={{ margin: '8px 0 0', fontSize: '12px', color: '#c0392b', fontWeight: '700', display: 'block' }}>{promoError}</p>}
+            </div>
+
+            <div style={{ display: 'grid', gap: '12px', marginBottom: '24px' }}>
+              <button
+                type="button"
+                onClick={() => handleConfirmPayUnpaid('deposit')}
+                disabled={processingPayment}
+                style={{
+                  background: 'linear-gradient(135deg, #fffbf0 0%, #fff8e6 100%)',
+                  border: '1.5px solid #f0d98e',
+                  padding: '16px',
+                  borderRadius: '16px',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  width: '100%'
+                }}
+              >
+                <strong style={{ display: 'block', fontSize: '15px', color: '#1f1713', marginBottom: '4px' }}>
+                  Đặt cọc 30%
+                </strong>
+                <span style={{ fontSize: '18px', fontWeight: '800', color: '#b5860a' }}>
+                  {formatPrice(payingUnpaidOrder.deposit)}
+                </span>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#786658' }}>
+                  Thanh toán phần còn lại sau khi xác nhận lịch chụp
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmPayUnpaid('full')}
+                disabled={processingPayment}
+                style={{
+                  background: 'linear-gradient(135deg, #f0fdf7 0%, #e6f9ef 100%)',
+                  border: '1.5px solid #9de3b8',
+                  padding: '16px',
+                  borderRadius: '16px',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  width: '100%'
+                }}
+              >
+                <strong style={{ display: 'block', fontSize: '15px', color: '#1f1713', marginBottom: '4px' }}>
+                  Thanh toán 100%
+                </strong>
+                <span style={{ fontSize: '18px', fontWeight: '800', color: '#08a86d' }}>
+                  {formatPrice(payingUnpaidOrder.price - payingUnpaidOrder.discount)}
+                </span>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#786658' }}>
+                  Thanh toán toàn bộ ngay để xác nhận lịch nhanh nhất
+                </p>
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setPayingUnpaidOrder(null)}
+                disabled={processingPayment}
+                style={{
+                  background: '#f5f0eb',
+                  color: '#6f6257',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '999px',
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancellingOrder && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '24px',
+            maxWidth: '480px',
+            width: '100%',
+            padding: '30px',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+            border: '1px solid #e2d7c9'
+          }}>
+            <h3 style={{
+              fontSize: '20px',
+              fontWeight: '800',
+              marginBottom: '16px',
+              color: '#1f1713'
+            }}>
+              Hủy đơn đặt lịch
+            </h3>
+            <p style={{
+              fontSize: '15px',
+              color: '#6f6257',
+              lineHeight: '1.6',
+              marginBottom: '20px'
+            }}>
+              Bạn có chắc chắn muốn hủy đơn đặt lịch <strong>{cancellingOrder.orderCode}</strong> cho dịch vụ <strong>{cancellingOrder.serviceName}</strong>? Hành động này không thể hoàn tác.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setCancellingOrder(null)}
+                disabled={processingCancel}
+                style={{
+                  background: '#f5f0eb',
+                  color: '#6f6257',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '999px',
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                Không, giữ lại
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                disabled={processingCancel}
+                style={{
+                  background: '#b24b2a',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '999px',
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                {processingCancel ? 'Đang hủy...' : 'Xác nhận hủy'}
+              </button>
+            </div>
           </div>
         </div>
       )}

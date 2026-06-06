@@ -118,7 +118,7 @@ function Profile() {
         setError(null)
         const [me, bookingsList] = await Promise.all([
           getMe(),
-          getBookings().catch(() => []),
+          getBookings({ role: 'customer' }).catch(() => []),
         ])
 
         if (cancelled) return
