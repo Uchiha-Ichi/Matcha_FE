@@ -148,6 +148,18 @@ export const createPaymentUrl = (bookingId, paymentType = 'deposit') =>
     body: JSON.stringify({ booking_id: bookingId, payment_type: paymentType }),
   })
 
+export const getPayment = (id) => apiFetch(`/payments/${id}`)
+
+export const closePaymentQr = ({ paymentId, paymentLinkId, orderCode }) =>
+  apiFetch('/payments/close-qr', {
+    method: 'POST',
+    body: JSON.stringify({
+      payment_id: paymentId,
+      payment_link_id: paymentLinkId,
+      order_code: orderCode,
+    }),
+  })
+
 /** Xác nhận thanh toán trực tiếp (không qua VNPay) — dùng cho demo */
 export const mockConfirmPayment = (bookingId, paymentType = 'deposit') =>
   apiFetch('/payments/mock-confirm', {

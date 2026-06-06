@@ -1304,3 +1304,153 @@
   border-radius: 4px;
 }
 
+
+.payment-qr-modal {
+  max-width: 460px;
+}
+
+.payment-qr-body {
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  text-align: center;
+}
+
+.payment-qr-image {
+  width: 260px;
+  height: 260px;
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid #eadfce;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.payment-qr-info {
+  display: grid;
+  gap: 4px;
+}
+
+.payment-qr-info span {
+  color: #7b6b5d;
+  font-size: 13px;
+}
+
+.payment-qr-info strong {
+  color: #0f1412;
+  font-size: 24px;
+}
+
+.payment-qr-info small {
+  color: #9b7b63;
+}
+
+.payment-qr-link {
+  color: #007d5b;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.payment-qr-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.payment-qr-actions button,
+.payment-result-card button {
+  flex: 1;
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 16px;
+  background: #f3ece4;
+  color: #6f6257;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.payment-qr-actions .payment-qr-actions__primary,
+.payment-result-card button {
+  background: #1f1713;
+  color: #fff;
+}
+
+.payment-result-card {
+  width: min(420px, calc(100vw - 40px));
+  background: #fff;
+  border-radius: 22px;
+  padding: 28px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.16);
+}
+
+.payment-result-card h2 {
+  margin: 0 0 10px;
+  color: #1f1713;
+  font-size: 22px;
+}
+
+.payment-result-card p {
+  color: #6f6257;
+  line-height: 1.6;
+}
+
+@media (max-width: 560px) {
+  .payment-qr-actions {
+    flex-direction: column;
+  }
+}
+.payment-qr-countdown {
+  display: inline-grid;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: #f7f1ea;
+}
+
+.payment-qr-countdown span {
+  color: #7b6b5d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.payment-qr-countdown strong {
+  color: #b24b2a;
+  font-size: 22px;
+}
+
+.payment-qr-bank-info {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #eadfce;
+  border-radius: 16px;
+  background: #fbf9f6;
+  text-align: left;
+}
+
+.payment-qr-bank-info div {
+  display: grid;
+  gap: 4px;
+}
+
+.payment-qr-bank-info div:not(:last-child) {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.payment-qr-bank-info span {
+  color: #7b6b5d;
+  font-size: 13px;
+}
+
+.payment-qr-bank-info strong {
+  color: #1f1713;
+  word-break: break-word;
+}
+
+.payment-qr-actions--single button {
+  background: #1f1713;
+  color: #fff;
+}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getBookings, mockConfirmPayment, updateBookingStatus, getPromotions, applyBookingPromotion } from '../../utils/api.js'
+import { getBookings, updateBookingStatus, getPromotions, applyBookingPromotion, createPaymentUrl, getPayment, closePaymentQr } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
 import './order_history.css'
 
@@ -28,6 +28,19 @@ const imageFallbacks = [
 const formatPrice = (value) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
 
+const formatCountdown = (milliseconds) => {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000))
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0')
+  const seconds = String(totalSeconds % 60).padStart(2, '0')
+  return `${minutes}:${seconds}`
+}
+const getQrExpiresAt = (qrPayment) => {
+  if (!qrPayment) return Date.now()
+  return qrPayment.payment?.expired_at
+    ? new Date(qrPayment.payment.expired_at).getTime()
+    : new Date(qrPayment.payment?.created_at ?? Date.now()).getTime() + 5 * 60 * 1000
+}
+
 const formatDateTime = (value) => {
   if (!value) return '—'
   try {
@@ -53,7 +66,7 @@ function normaliseBooking(booking, index) {
   const pc = detail?.partner_concept ?? {}
   const concept = pc.concept ?? {}
   const partner = booking.partner ?? {}
-  const payment = booking.payments?.[0] ?? null  // payments là array trong entity
+  const payment = booking.payments?.find((p) => ['pending', 'processing', 'unpaid', 'partially_paid'].includes(p.status)) ?? booking.payments?.[0] ?? null
 
   // pick image: partner concept image → partner cover → fallback
   const image =
@@ -66,6 +79,9 @@ function normaliseBooking(booking, index) {
     orderCode: `MTC-${String(booking.id).padStart(5, '0')}`,
     status: booking.status,
     paymentStatus: payment?.status ?? 'unpaid',
+    paymentId: payment?.id ?? null,
+    paymentLinkId: payment?.payment_link_id ?? null,
+    paymentOrderCode: payment?.order_code ?? null,
     serviceName: concept.name ?? 'Dịch vụ Matcha',
     partnerName: partner.band_name ?? 'Matcha Partner',
     partnerId: partner.id,
@@ -112,6 +128,9 @@ function OrderHistory() {
   const [cancellingOrder, setCancellingOrder] = useState(null)
   const [processingPayment, setProcessingPayment] = useState(false)
   const [processingCancel, setProcessingCancel] = useState(false)
+  const [qrPayment, setQrPayment] = useState(null)
+  const [paymentResult, setPaymentResult] = useState(null)
+  const [paymentNow, setPaymentNow] = useState(Date.now())
 
   // Promo code states for payingUnpaidOrder modal
   const [promoCode, setPromoCode] = useState('')
@@ -132,13 +151,16 @@ function OrderHistory() {
   const handleConfirmPayRemaining = async () => {
     if (!payingOrder) return
     setProcessingPayment(true)
+    setPaymentResult(null)
     try {
-      await mockConfirmPayment(payingOrder.id, 'full')
-      setPaymentAlert({
-        status: 'success',
-        message: `Thanh toán thành công số tiền còn lại ${formatPrice(payingOrder.remaining)} cho đơn hàng ${payingOrder.orderCode}!`
+      const paymentData = await createPaymentUrl(payingOrder.id, 'remaining')
+      setQrPayment({
+        ...paymentData,
+        type: 'remaining',
+        bookingId: payingOrder.id,
+        orderCodeLabel: payingOrder.orderCode,
+        amount: paymentData.amount ?? payingOrder.remaining,
       })
-      await refreshOrders()
       setPayingOrder(null)
     } catch (err) {
       alert(`Thanh toán thất bại: ${err.message}`)
@@ -148,17 +170,19 @@ function OrderHistory() {
   }
 
   const handleConfirmPayUnpaid = async (type) => {
-    // type: 'deposit' | 'full'
     if (!payingUnpaidOrder) return
     setProcessingPayment(true)
+    setPaymentResult(null)
     try {
-      await mockConfirmPayment(payingUnpaidOrder.id, type)
       const payAmount = type === 'deposit' ? payingUnpaidOrder.deposit : (payingUnpaidOrder.price - payingUnpaidOrder.discount)
-      setPaymentAlert({
-        status: 'success',
-        message: `Thanh toán ${type === 'deposit' ? 'đặt cọc' : '100%'} thành công số tiền ${formatPrice(payAmount)} cho đơn hàng ${payingUnpaidOrder.orderCode}!`
+      const paymentData = await createPaymentUrl(payingUnpaidOrder.id, type)
+      setQrPayment({
+        ...paymentData,
+        type,
+        bookingId: payingUnpaidOrder.id,
+        orderCodeLabel: payingUnpaidOrder.orderCode,
+        amount: paymentData.amount ?? payAmount,
       })
-      await refreshOrders()
       setPayingUnpaidOrder(null)
     } catch (err) {
       alert(`Thanh toán thất bại: ${err.message}`)
@@ -167,6 +191,54 @@ function OrderHistory() {
     }
   }
 
+  const handleCloseQr = async () => {
+    if (!qrPayment) return
+    try {
+      await closePaymentQr({
+        paymentId: qrPayment.payment?.id,
+        paymentLinkId: qrPayment.paymentLinkId,
+        orderCode: qrPayment.orderCode,
+      })
+    } catch (err) {
+      console.error('Không thể đóng QR thanh toán:', err)
+    } finally {
+      setQrPayment(null)
+      setPaymentResult({
+        title: 'Đã đóng QR thanh toán',
+        message: 'Mã QR đã được hủy. Bạn có thể tạo mã mới khi muốn thanh toán lại.',
+      })
+      await refreshOrders()
+    }
+  }
+
+  const handleCheckQrPayment = async () => {
+    if (!qrPayment?.payment?.id) return
+    try {
+      const payload = await getPayment(qrPayment.payment.id)
+      const payment = payload?.payment ?? payload
+      const status = payment?.status
+      if (status === 'paid' || status === 'partially_paid') {
+        setQrPayment(null)
+        setPaymentAlert({
+          status: 'success',
+          message: `Thanh toán thành công ${formatPrice(Number(payment.amount_paid ?? qrPayment.amount))} cho đơn hàng ${qrPayment.orderCodeLabel || qrPayment.bookingId}!`,
+        })
+        await refreshOrders()
+        return
+      }
+      setPaymentResult({
+        title: 'Chưa ghi nhận thanh toán',
+        message: 'Giao dịch vẫn đang chờ xác nhận. Nếu bạn đã chuyển khoản, vui lòng thử kiểm tra lại sau vài giây.',
+      })
+    } catch (err) {
+      setQrPayment(null)
+      setPaymentResult({
+        title: 'QR không còn hiệu lực',
+        message: err.message || 'Mã QR đã hết hạn hoặc đã bị hủy. Vui lòng tạo mã thanh toán mới.',
+      })
+      await refreshOrders()
+    }
+  }
   const handleConfirmCancel = async () => {
     if (!cancellingOrder) return
     setProcessingCancel(true)
@@ -240,6 +312,57 @@ function OrderHistory() {
     }
   }, [])
 
+
+  useEffect(() => {
+    if (!qrPayment) return undefined
+    setPaymentNow(Date.now())
+    const timer = window.setInterval(() => setPaymentNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [qrPayment])
+
+
+  useEffect(() => {
+    if (!qrPayment?.payment?.id) return undefined
+
+    let cancelled = false
+    const pollQrPaymentStatus = async () => {
+      try {
+        const payload = await getPayment(qrPayment.payment.id)
+        const payment = payload?.payment ?? payload
+        const status = payment?.status
+        if (cancelled || (status !== 'paid' && status !== 'partially_paid')) return
+
+        setQrPayment(null)
+        setPaymentAlert({
+          status: 'success',
+          message: `Thanh toán thành công ${formatPrice(Number(payment.amount_paid ?? qrPayment.amount))} cho đơn hàng ${qrPayment.orderCodeLabel || qrPayment.bookingId}!`,
+        })
+        await refreshOrders()
+      } catch (err) {
+        if (!cancelled && Date.now() >= getQrExpiresAt(qrPayment)) {
+          setQrPayment(null)
+          setPaymentResult({
+            title: 'QR không còn hiệu lực',
+            message: err.message || 'Mã QR đã hết hạn hoặc đã bị hủy. Vui lòng tạo mã thanh toán mới.',
+          })
+          await refreshOrders()
+        }
+      }
+    }
+
+    pollQrPaymentStatus()
+    const timer = window.setInterval(pollQrPaymentStatus, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [qrPayment])
+  const qrExpiresAt = getQrExpiresAt(qrPayment)
+  const qrCountdown = formatCountdown(qrExpiresAt - paymentNow)
+  const qrTransferContent = qrPayment?.payment?.raw_response?.data?.description
+    ?? qrPayment?.payment?.description
+    ?? qrPayment?.description
+    ?? `Matcha booking ${qrPayment?.bookingId ?? ''}`
   const handleChatClick = (event, order) => {
     event.preventDefault()
     window.history.pushState({
@@ -611,6 +734,40 @@ function OrderHistory() {
         </div>
       )}
 
+
+      {qrPayment && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: 20 }} onClick={handleCloseQr}>
+          <div style={{ background: '#fff', borderRadius: 24, width: '100%', maxWidth: 460, padding: 28, textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.18)' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 12px', color: '#1f1713', fontSize: 22 }}>Quét QR để thanh toán</h3>
+            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(qrPayment.qrCode)}`} alt="QR thanh toán payOS" style={{ width: 260, height: 260, maxWidth: '100%', border: '1px solid #eadfce', borderRadius: 16, padding: 10, background: '#fff' }} />
+            <div style={{ marginTop: 16, display: 'grid', gap: 4 }}>
+              <span style={{ color: '#7b6b5d', fontSize: 13 }}>Số tiền cần thanh toán</span>
+              <strong style={{ color: '#0f1412', fontSize: 24 }}>{formatPrice(Number(qrPayment.amount ?? 0))}</strong>
+            </div>
+            <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 14, background: '#f7f1ea', display: 'inline-grid', gap: 2 }}>
+              <span style={{ color: '#7b6b5d', fontSize: 12, fontWeight: 700 }}>Thời gian còn lại</span>
+              <strong style={{ color: '#b24b2a', fontSize: 22 }}>{qrCountdown}</strong>
+            </div>
+            <div style={{ marginTop: 16, display: 'grid', gap: 10, textAlign: 'left', background: '#fbf9f6', border: '1px solid #eadfce', borderRadius: 16, padding: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><span style={{ color: '#7b6b5d' }}>Ngân hàng</span><strong>BIDV</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><span style={{ color: '#7b6b5d' }}>Thụ hưởng</span><strong>Hoàng Huy Nhật</strong></div>
+              <div style={{ display: 'grid', gap: 4 }}><span style={{ color: '#7b6b5d' }}>Nội dung giao dịch</span><strong style={{ wordBreak: 'break-word' }}>{qrTransferContent}</strong></div>
+            </div>            <div style={{ display: 'flex', gap: 12, marginTop: 22 }}>
+              <button type="button" onClick={handleCloseQr} style={{ flex: 1, border: 0, borderRadius: 999, padding: '12px 16px', background: '#1f1713', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Đóng QR</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {paymentResult && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: 20 }} onClick={() => setPaymentResult(null)}>
+          <div style={{ background: '#fff', borderRadius: 22, width: '100%', maxWidth: 420, padding: 28, textAlign: 'center', boxShadow: '0 20px 50px rgba(0,0,0,0.16)' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 10px', color: '#1f1713' }}>{paymentResult.title}</h3>
+            <p style={{ color: '#6f6257', lineHeight: 1.6 }}>{paymentResult.message}</p>
+            <button type="button" onClick={() => setPaymentResult(null)} style={{ width: '100%', border: 0, borderRadius: 999, padding: '12px 20px', background: '#1f1713', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Đóng</button>
+          </div>
+        </div>
+      )}
       {payingOrder && (
         <div style={{
           position: 'fixed',
