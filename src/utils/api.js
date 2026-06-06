@@ -89,10 +89,15 @@ export const checkoutCart = (dto) =>
   })
 
 // ── Bookings ──────────────────────────────────────────────────────────────────
-export const getBookings = () => apiFetch('/bookings')
+export const getBookings = (params = {}) => {
+  const query = new URLSearchParams(params).toString()
+  return apiFetch(`/bookings${query ? `?${query}` : ''}`)
+}
 export const getBooking = (id) => apiFetch(`/bookings/${id}`)
 export const updateBookingStatus = (id, status) =>
   apiFetch(`/bookings/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+export const updateBooking = (id, dto) =>
+  apiFetch(`/bookings/${id}`, { method: 'PATCH', body: JSON.stringify(dto) })
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 export const getMe = () => apiFetch('/users/me')
@@ -143,12 +148,44 @@ export const createPaymentUrl = (bookingId, paymentType = 'deposit') =>
     body: JSON.stringify({ booking_id: bookingId, payment_type: paymentType }),
   })
 
+/** Xác nhận thanh toán trực tiếp (không qua VNPay) — dùng cho demo */
+export const mockConfirmPayment = (bookingId, paymentType = 'deposit') =>
+  apiFetch('/payments/mock-confirm', {
+    method: 'POST',
+    body: JSON.stringify({ booking_id: bookingId, payment_type: paymentType }),
+  })
+
 // ── AI Ideas ──────────────────────────────────────────────────────────────────
 export const generateAiIdea = (prompt) =>
   apiFetch('/ai/generate-idea', {
     method: 'POST',
     body: JSON.stringify({ prompt }),
   })
+
+// ── Images ────────────────────────────────────────────────────────────────────
+export const deleteImage = (id) => apiFetch(`/image/${id}`, { method: 'DELETE' })
+export const setPrimaryImage = (id, targetType, targetId) =>
+  apiFetch(`/image/${id}/set-primary`, {
+    method: 'PATCH',
+    body: JSON.stringify({ target_type: targetType, target_id: targetId }),
+  })
+export const addImageToTarget = (targetType, targetId, file) => {
+  const formData = new FormData()
+  formData.append('target_type', targetType)
+  formData.append('target_id', String(targetId))
+  formData.append('file', file)
+  return fetch('/api/v1/image/add-to-target', {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  }).then(async (res) => {
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }))
+      throw new Error(err.message ?? `HTTP ${res.status}`)
+    }
+    return res.json()
+  })
+}
 
 // ── Admin / Statistics ────────────────────────────────────────────────────────
 export const getAdminStats = () => apiFetch('/statistics/dashboard')
@@ -182,3 +219,12 @@ export const createNotification = (dto) =>
 export const deleteFeedback = (id) => apiFetch(`/feedbacks/${id}`, { method: 'DELETE' })
 export const updateFeedback = (id, dto) =>
   apiFetch(`/feedbacks/${id}`, { method: 'PATCH', body: JSON.stringify(dto) })
+
+// ── Promotions ────────────────────────────────────────────────────────────────
+export const validatePromoCode = (code) => apiFetch(`/promotions/validate/${code}`)
+export const getPromotions = () => apiFetch('/promotions')
+export const applyBookingPromotion = (bookingId, code) =>
+  apiFetch(`/bookings/${bookingId}/apply-promotion`, {
+    method: 'PATCH',
+    body: JSON.stringify({ code }),
+  })

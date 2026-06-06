@@ -35,10 +35,10 @@ const formatDateTime = (value) => {
   }
 }
 
-const navigate = (event, path) => {
+const navigate = (event, path, state = {}) => {
   event.preventDefault()
   if (window.location.pathname === path) return
-  window.history.pushState({}, '', path)
+  window.history.pushState(state, '', path)
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
@@ -307,7 +307,7 @@ function PartnerDashboard() {
                       </div>
 
                       <div className="partner-booking-card__actions">
-                        <a href="/chat" onClick={(event) => navigate(event, '/chat')}>
+                        <a href="/chat" onClick={(event) => navigate(event, '/chat', { userId: booking.user?.id, bookingId: booking.id })}>
                           Nhắn khách
                         </a>
                         {nextStatus && (

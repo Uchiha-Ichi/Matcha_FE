@@ -12,6 +12,7 @@ import PartnerBookings from './pages/partner_bookings/partner_bookings.jsx'
 import PartnerDashboard from './pages/partner_dashboard/partner_dashboard.jsx'
 import PartnerSchedule from './pages/partner_schedule/partner_schedule.jsx'
 import PartnerServices from './pages/partner_services/partner_services.jsx'
+import PartnerServiceDetail from './pages/partner_service_detail/partner_service_detail.jsx'
 import PartnerSetup from './pages/partner_setup/partner_setup.jsx'
 import Profile from './pages/profile/profile.jsx'
 import ServiceDetail from './pages/service_detail/service_detail.jsx'
@@ -33,6 +34,11 @@ function extractServiceDetailId(path) {
  */
 function extractBookingId(path) {
   const match = path.match(/^\/bookings\/(\d+)$/)
+  return match ? Number(match[1]) : null
+}
+
+function extractPartnerServiceDetailId(path) {
+  const match = path.match(/^\/partner-services\/(\d+)$/)
   return match ? Number(match[1]) : null
 }
 
@@ -119,6 +125,13 @@ function App() {
     if (!isLoggedIn) return <Login closeHref="/partner-bookings" />
     if (userRole !== 'Partner') return <AccessDenied requiredRole="Đối tác (Partner)" />
     return <PartnerBookings />
+  }
+
+  const partnerServiceDetailId = extractPartnerServiceDetailId(route)
+  if (partnerServiceDetailId !== null) {
+    if (!isLoggedIn) return <Login closeHref={`/partner-services/${partnerServiceDetailId}`} />
+    if (userRole !== 'Partner') return <AccessDenied requiredRole="Đối tác (Partner)" />
+    return <PartnerServiceDetail partnerConceptId={partnerServiceDetailId} />
   }
 
   if (route === '/partner-services') {

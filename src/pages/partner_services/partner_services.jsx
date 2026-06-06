@@ -28,7 +28,7 @@ const defaultDraft = {
   price: '',
   time: '',
   image_des: '',
-  file: null,
+  files: [],
 }
 
 function PartnerServices() {
@@ -80,8 +80,8 @@ function PartnerServices() {
   const updateDraft = (field, value) => setDraft((d) => ({ ...d, [field]: value }))
 
   const handleFileChange = (event) => {
-    const file = event.target.files?.[0]
-    if (file) setDraft((d) => ({ ...d, file }))
+    const files = Array.from(event.target.files || [])
+    setDraft((d) => ({ ...d, files }))
   }
 
   const handleCreate = async (event) => {
@@ -101,8 +101,13 @@ function PartnerServices() {
       formData.append('time', draft.time)
       formData.append('concept_id', String(draft.concept_id))
       formData.append('partner_id', String(partner.id))
-      if (draft.file) formData.append('file', draft.file)
-      else if (draft.image_des) formData.append('image_des', draft.image_des)
+      if (draft.files && draft.files.length > 0) {
+        draft.files.forEach((file) => {
+          formData.append('files', file)
+        })
+      } else if (draft.image_des) {
+        formData.append('image_des', draft.image_des)
+      }
 
       const created = await createPartnerConcept(formData)
       // Reload services to get full relations
@@ -204,11 +209,20 @@ function PartnerServices() {
                     </label>
                     <label>
                       <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Thời lượng</span>
-                      <input
+                      <select
                         value={editDraft.time}
                         onChange={(e) => setEditDraft((d) => ({ ...d, time: e.target.value }))}
-                        style={{ width: '100%', marginBottom: '0.5rem' }}
-                      />
+                        style={{ width: '100%', marginBottom: '0.5rem', minHeight: '36px', borderRadius: '8px', border: '1px solid #ced4da', padding: '0 8px' }}
+                      >
+                        <option value="1h">1 giờ</option>
+                        <option value="1.5h">1.5 giờ</option>
+                        <option value="2h">2 giờ</option>
+                        <option value="2.5h">2.5 giờ</option>
+                        <option value="3h">3 giờ</option>
+                        <option value="4h">4 giờ</option>
+                        <option value="5h">5 giờ</option>
+                        <option value="Cả ngày">Cả ngày</option>
+                      </select>
                     </label>
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                       <button type="button" onClick={() => handleUpdate(service.id)}>
@@ -222,8 +236,41 @@ function PartnerServices() {
                 ) : (
                   <>
                     <span>{service.time}</span>
-                    <h2>{service.concept?.name ?? 'Concept'}</h2>
-                    <p>{service.image_des}</p>
+                    <h2
+                      className="clickable"
+                      onClick={(e) => navigate(e, `/partner-services/${service.id}`)}
+                      title="Xem chi tiết phong cách này"
+                    >
+                      {service.concept?.name ?? 'Concept'}
+                    </h2>
+                    {service.images && service.images.length > 0 ? (
+                      <div
+                        className="partner-service-images clickable"
+                        onClick={(e) => navigate(e, `/partner-services/${service.id}`)}
+                        title="Xem chi tiết phong cách này"
+                      >
+                        {service.images.map((img) => (
+                          <img
+                            key={img.id}
+                            src={img.image_src}
+                            alt={service.concept?.name}
+                            className="partner-service-img"
+                          />
+                        ))}
+                      </div>
+                    ) : service.image_des ? (
+                      <div
+                        className="partner-service-images clickable"
+                        onClick={(e) => navigate(e, `/partner-services/${service.id}`)}
+                        title="Xem chi tiết phong cách này"
+                      >
+                        <img
+                          src={service.image_des}
+                          alt={service.concept?.name}
+                          className="partner-service-img"
+                        />
+                      </div>
+                    ) : null}
                     <strong>{formatPrice(service.price)}</strong>
                     <div>
                       <button type="button" onClick={() => startEdit(service)}>
@@ -275,16 +322,26 @@ function PartnerServices() {
 
             <label>
               <span>Thời lượng</span>
-              <input
+              <select
                 value={draft.time}
                 onChange={(event) => updateDraft('time', event.target.value)}
-                placeholder="3h"
-              />
+                required
+              >
+                <option value="">— Chọn thời lượng —</option>
+                <option value="1h">1 giờ</option>
+                <option value="1.5h">1.5 giờ</option>
+                <option value="2h">2 giờ</option>
+                <option value="2.5h">2.5 giờ</option>
+                <option value="3h">3 giờ</option>
+                <option value="4h">4 giờ</option>
+                <option value="5h">5 giờ</option>
+                <option value="Cả ngày">Cả ngày</option>
+              </select>
             </label>
 
             <label>
-              <span>Ảnh minh họa (file)</span>
-              <input type="file" accept="image/*" onChange={handleFileChange} />
+              <span>Ảnh minh họa (tối đa nhiều file)</span>
+              <input type="file" accept="image/*" onChange={handleFileChange} multiple />
             </label>
 
             <label>
@@ -293,12 +350,19 @@ function PartnerServices() {
                 value={draft.image_des}
                 onChange={(event) => updateDraft('image_des', event.target.value)}
                 placeholder="https://... hoặc để trống"
-                disabled={!!draft.file}
+                disabled={draft.files && draft.files.length > 0}
               />
             </label>
 
-            <button type="submit" disabled={saving}>
-              {saving ? 'Đang lưu…' : 'Lưu dịch vụ'}
+            <button type="submit" disabled={saving} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              {saving ? (
+                <>
+                  <span className="spinner-loader"></span>
+                  Đang lưu…
+                </>
+              ) : (
+                'Lưu dịch vụ'
+              )}
             </button>
           </form>
         </section>
