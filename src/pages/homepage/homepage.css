@@ -264,6 +264,25 @@
   font-weight: 600;
 }
 
+.catalog-search-input input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #514b43;
+  font: inherit;
+}
+
+.catalog-search-input input::placeholder {
+  color: #8f8577;
+  opacity: 1;
+}
+
+.catalog-search-input input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
 .catalog-search-icon {
   color: #6f685d;
   font-size: 18px;

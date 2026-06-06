@@ -108,7 +108,7 @@ function Login({ closeHref = '/' }) {
           navigateTo('/partner-setup')
         }
       } else if (userData.role === 'Customer') {
-        navigateTo('/profile')
+        navigateTo('/')
       } else {
         navigateTo('/admin-dashboard')
       }
