@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getCart, removeCartItem, checkoutCart, createPaymentUrl } from '../../utils/api.js'
+import { getCart, removeCartItem, checkoutCart, mockConfirmPayment, validatePromoCode, getPromotions } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
 import './cart.css'
 
@@ -74,6 +74,17 @@ function Cart() {
   const [checkingOut, setCheckingOut] = useState(false)
   const [checkoutMsg, setCheckoutMsg] = useState(null)
   const [bookingTimes, setBookingTimes] = useState({})
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentSuccess, setPaymentSuccess] = useState(null) // null | { type, amount }
+  const [showSuccessScreen, setShowSuccessScreen] = useState(false)
+
+  const [promoCode, setPromoCode] = useState('')
+  const [appliedPromo, setAppliedPromo] = useState(null)
+  const [promoError, setPromoError] = useState(null)
+  const [validatingPromo, setValidatingPromo] = useState(false)
+
+  const [promotions, setPromotions] = useState([])
+  const [loadingPromos, setLoadingPromos] = useState(false)
 
   // Normalise API cart items into display shape
   const cartItems = useMemo(() => {
@@ -129,8 +140,25 @@ function Cart() {
     () => selectedItems.reduce((total, item) => total + item.price, 0),
     [selectedItems],
   )
-  const deposit = Math.round(subtotal * 0.3)
-  const remaining = subtotal - deposit
+
+  const discount = useMemo(() => {
+    if (!appliedPromo) return 0
+    let amt = 0
+    if (appliedPromo.discount_percentage > 0) {
+      amt = subtotal * (appliedPromo.discount_percentage / 100)
+    } else if (appliedPromo.discount_amount > 0) {
+      amt = Number(appliedPromo.discount_amount)
+    }
+    if (appliedPromo.max_discount && amt > Number(appliedPromo.max_discount)) {
+      amt = Number(appliedPromo.max_discount)
+    }
+    if (amt > subtotal) amt = subtotal
+    return Math.round(amt)
+  }, [appliedPromo, subtotal])
+
+  const netTotal = subtotal - discount
+  const deposit = Math.round(netTotal * 0.3)
+  const remaining = netTotal - deposit
 
   const toggleItem = (id) =>
     setSelected((prev) => {
@@ -160,10 +188,10 @@ function Cart() {
     }
   }
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (selectedItems.length === 0) return
 
-    // Lấy booking time từ item đầu tiên được chọn (hoặc item đầu tiên nếu chỉ có 1)
+    // Lấy booking time từ item đầu tiên được chọn
     const firstSelected = selectedItems[0]
     const bt = bookingTimes[firstSelected?.partnerConceptId]
     if (!bt?.date || !bt?.time) {
@@ -171,23 +199,77 @@ function Cart() {
       return
     }
 
+    // Reset promo states
+    setPromoCode('')
+    setAppliedPromo(null)
+    setPromoError(null)
+
+    // Load available promotions
+    setLoadingPromos(true)
+    getPromotions()
+      .then((data) => {
+        const active = (data || []).filter(
+          (p) => p.is_active && (!p.expired_at || new Date(p.expired_at) > new Date())
+        )
+        setPromotions(active)
+      })
+      .catch((err) => console.error('Lỗi khi tải mã giảm giá:', err))
+      .finally(() => setLoadingPromos(false))
+
+    // Mở modal chọn hình thức thanh toán
+    setShowPaymentModal(true)
+  }
+
+  const handleApplyPromo = async (e) => {
+    e.preventDefault()
+    const code = promoCode.trim().toUpperCase()
+    if (!code) return
+
+    setValidatingPromo(true)
+    setPromoError(null)
+    try {
+      const promo = await validatePromoCode(code)
+      setAppliedPromo(promo)
+      setPromoCode('')
+    } catch (err) {
+      setPromoError(err.message || 'Mã giảm giá không hợp lệ')
+      setAppliedPromo(null)
+    } finally {
+      setValidatingPromo(false)
+    }
+  }
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null)
+    setPromoError(null)
+  }
+
+  const handleConfirmPayment = async (type) => {
+    // type: 'deposit' | 'full' — không dùng VNPay sandbox
+    setShowPaymentModal(false)
     setCheckingOut(true)
     setCheckoutMsg(null)
     try {
+      const firstSelected = selectedItems[0]
+      const bt = bookingTimes[firstSelected?.partnerConceptId]
       const bookingTimeIso = bt.iso ?? new Date(`${bt.date}T${bt.time}:00`).toISOString()
-      const bookings = await checkoutCart({ booking_time: bookingTimeIso })
-
+      
+      const bookings = await checkoutCart({ 
+        booking_time: bookingTimeIso,
+        promotion_id: appliedPromo ? appliedPromo.id : undefined
+      })
       window.dispatchEvent(new CustomEvent('matcha-cart-change'))
 
-      if (bookings && bookings.length > 0) {
-        // Lấy link thanh toán cọc VNPay (30%) cho booking đầu tiên
-        const { url } = await createPaymentUrl(bookings[0].id, 'deposit')
-        // Chuyển hướng sang VNPay
-        window.location.href = url
-      } else {
-        setCheckoutMsg('success')
-        await loadCart()
+      // Gọi mock-confirm để cập nhật payment status trong DB
+      if (Array.isArray(bookings) && bookings.length > 0) {
+        await mockConfirmPayment(bookings[0].id, type)
       }
+
+      const amount = type === 'deposit' ? deposit : netTotal
+      setPaymentSuccess({ type, amount })
+      setShowSuccessScreen(true)
+      await loadCart()
+      setAppliedPromo(null)
     } catch (err) {
       setCheckoutMsg(err.message)
     } finally {
@@ -371,9 +453,13 @@ function Cart() {
             </div>
           )}
 
-          {checkoutMsg === 'success' && (
+          {paymentSuccess && (
             <div className="cart-checkout-success">
-              ✓ Đặt lịch thành công! Ekip sẽ xác nhận sớm.
+              ✓ {paymentSuccess.type === 'deposit'
+                ? `Đặt cọc thành công! Bạn đã đặt cọc ${formatPrice(paymentSuccess.amount)}.`
+                : `Thanh toán 100% thành công! Đã thanh toán ${formatPrice(paymentSuccess.amount)}.`
+              }
+              {' '}Ekip sẽ xác nhận lịch sớm.
             </div>
           )}
           {checkoutMsg && checkoutMsg !== 'success' && (
@@ -383,10 +469,13 @@ function Cart() {
           <button
             className="cart-checkout"
             type="button"
-            disabled={selectedItems.length === 0 || checkingOut}
+            disabled={selectedItems.length === 0 || checkingOut || !!paymentSuccess}
             onClick={handleCheckout}
           >
-            {checkingOut ? 'Đang xử lý...' : 'Tiếp tục đặt lịch'}
+            {checkingOut
+              ? <span className="cart-checkout-spinner"><span className="spinner-dot" /><span className="spinner-dot" /><span className="spinner-dot" /></span>
+              : 'Tiếp tục thanh toán'
+            }
           </button>
           <a className="cart-continue" href="/" onClick={(event) => navigate(event, '/')}>
             Chọn thêm dịch vụ
@@ -395,6 +484,203 @@ function Cart() {
       </section>
 
       <Footer />
+
+      {/* ── Processing Overlay ────────────────────────────────────── */}
+      {checkingOut && (
+        <div className="payment-processing-overlay">
+          <div className="payment-processing-box">
+            <div className="payment-processing-spinner" />
+            <p>Đang xử lý đặt lịch...</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Success Screen ────────────────────────────────────────── */}
+      {showSuccessScreen && paymentSuccess && (
+        <div className="payment-success-overlay">
+          <div className="payment-success-card">
+            <div className="payment-success-icon">
+              <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="26" cy="26" r="25" stroke="#1bc48f" strokeWidth="2" fill="rgba(27,196,143,0.08)" />
+                <path d="M15 26.5l8 8 14-16" stroke="#1bc48f" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="success-checkmark" />
+              </svg>
+            </div>
+            <h2>Thanh toán thành công!</h2>
+            <p className="payment-success-type">
+              {paymentSuccess.type === 'deposit' ? '💰 Đặt cọc 30%' : '✅ Thanh toán 100%'}
+            </p>
+            <div className="payment-success-amount">
+              <span>Số tiền</span>
+              <strong>{formatPrice(paymentSuccess.amount)}</strong>
+            </div>
+            <p className="payment-success-note">
+              🎉 Đặt lịch thành công! Ekip của chúng tôi sẽ liên hệ xác nhận lịch chụp sớm nhất.
+            </p>
+            <div className="payment-success-actions">
+              <button
+                type="button"
+                className="payment-success-btn payment-success-btn--primary"
+                onClick={() => { setShowSuccessScreen(false) }}
+              >
+                Xem giỏ hàng
+              </button>
+              <a
+                href="/"
+                className="payment-success-btn payment-success-btn--secondary"
+                onClick={(e) => { setShowSuccessScreen(false); navigate(e, '/') }}
+              >
+                Về trang chủ
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Payment Modal ─────────────────────────────────────────── */}
+      {showPaymentModal && (
+        <div className="payment-modal-overlay" onClick={() => { setShowPaymentModal(false); setAppliedPromo(null); setPromoCode(''); setPromoError(null); }}>
+          <div className="payment-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="payment-modal__header">
+              <h2>Chọn hình thức thanh toán</h2>
+              <button
+                className="payment-modal__close"
+                type="button"
+                onClick={() => { setShowPaymentModal(false); setAppliedPromo(null); setPromoCode(''); setPromoError(null); }}
+                aria-label="Đóng"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="payment-modal__price-breakdown">
+              <div className="price-row">
+                <span>Tổng tiền:</span>
+                <span>{formatPrice(subtotal)}</span>
+              </div>
+              {discount > 0 && (
+                <div className="price-row price-row--discount">
+                  <span>Giảm giá:</span>
+                  <span>-{formatPrice(discount)}</span>
+                </div>
+              )}
+              <div className="price-row price-row--total">
+                <span>Thành tiền:</span>
+                <strong>{formatPrice(netTotal)}</strong>
+              </div>
+            </div>
+
+            {/* Khung nhập mã giảm giá */}
+            <div className="payment-modal__promo-container">
+              {!appliedPromo ? (
+                <>
+                  <form className="payment-modal__promo-form" onSubmit={handleApplyPromo}>
+                    <input
+                      type="text"
+                      placeholder="Nhập mã giảm giá (VD: MATCHAFREE)..."
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value)}
+                      disabled={validatingPromo}
+                    />
+                    <button type="submit" disabled={validatingPromo || !promoCode.trim()}>
+                      {validatingPromo ? 'Áp dụng...' : 'Áp dụng'}
+                    </button>
+                  </form>
+
+                  {/* Chọn mã giảm giá khả dụng */}
+                  <div className="payment-modal__promos-select">
+                    <h3>Hoặc chọn mã giảm giá khả dụng:</h3>
+                    {loadingPromos ? (
+                      <p className="promos-loading">Đang tải mã giảm giá...</p>
+                    ) : promotions.length === 0 ? (
+                      <p className="promos-empty">Chưa có mã giảm giá nào khả dụng.</p>
+                    ) : (
+                      <div className="promos-coupon-grid">
+                        {promotions.map((promo) => (
+                          <button
+                            key={promo.id}
+                            type="button"
+                            className="promo-coupon-card"
+                            onClick={() => {
+                              setAppliedPromo(promo);
+                              setPromoError(null);
+                            }}
+                          >
+                            <div className="coupon-left">
+                              <strong>{promo.code}</strong>
+                              <span>{promo.description || 'Giảm giá đặc biệt'}</span>
+                            </div>
+                            <div className="coupon-right">
+                              <strong>
+                                {promo.discount_percentage > 0
+                                  ? `-${promo.discount_percentage}%`
+                                  : `-${formatPrice(promo.discount_amount)}`
+                                }
+                              </strong>
+                              <span>Áp dụng</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="payment-modal__promo-active">
+                  <div className="promo-active-badge">
+                    <span>🏷️</span>
+                    <strong>{appliedPromo.code}</strong>
+                    <span className="promo-active-discount">
+                      (-{appliedPromo.discount_percentage > 0 
+                        ? `${appliedPromo.discount_percentage}%` 
+                        : formatPrice(appliedPromo.discount_amount)})
+                    </span>
+                  </div>
+                  <button type="button" onClick={handleRemovePromo} className="promo-active-remove">
+                    ✕ Gỡ
+                  </button>
+                </div>
+              )}
+              {promoError && <p className="promo-error-msg">{promoError}</p>}
+            </div>
+
+            <div className="payment-modal__options">
+              {/* Đặt cọc */}
+              <button
+                type="button"
+                className="payment-option payment-option--deposit"
+                onClick={() => handleConfirmPayment('deposit')}
+              >
+                <span className="payment-option__icon">💰</span>
+                <div className="payment-option__body">
+                  <strong>Đặt cọc 30%</strong>
+                  <span>{formatPrice(deposit)}</span>
+                  <p>Thanh toán số còn lại {formatPrice(remaining)} sau khi xác nhận lịch</p>
+                </div>
+                <span className="payment-option__arrow">→</span>
+              </button>
+
+              {/* Thanh toán 100% */}
+              <button
+                type="button"
+                className="payment-option payment-option--full"
+                onClick={() => handleConfirmPayment('full')}
+              >
+                <span className="payment-option__icon">✅</span>
+                <div className="payment-option__body">
+                  <strong>Thanh toán 100%</strong>
+                  <span>{formatPrice(netTotal)}</span>
+                  <p>Thanh toán toàn bộ ngay, ưu tiên xếp lịch sớm hơn</p>
+                </div>
+                <span className="payment-option__arrow">→</span>
+              </button>
+            </div>
+
+            <p className="payment-modal__note">
+              🔒 Thanh toán được bảo mật và xử lý an toàn
+            </p>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

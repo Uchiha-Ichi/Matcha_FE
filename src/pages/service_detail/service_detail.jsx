@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getPartnerConcept, getPartner, getFeedbacks, addCartItem, clearCart, checkoutCart, createPaymentUrl } from '../../utils/api.js'
+import { getPartnerConcept, getPartner, getFeedbacks, addCartItem, clearCart, checkoutCart, mockConfirmPayment, validatePromoCode, getPromotions } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
 import './service_detail.css'
 
@@ -89,7 +89,39 @@ function ServiceDetail({ partnerConceptId }) {
   const [bookingStatus, setBookingStatus] = useState(null) // 'booking' | null
   const [bookingDate, setBookingDate] = useState('')
   const [bookingTime, setBookingTime] = useState('')
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showSuccessScreen, setShowSuccessScreen] = useState(false)
+  const [paymentSuccess, setPaymentSuccess] = useState(null) // null | { type, amount }
+  const [pendingBooking, setPendingBooking] = useState(null) // booking data after checkout
   const authUser = getAuthUser()
+
+  const price = Number(partnerConcept?.price ?? 0)
+
+  const [promoCode, setPromoCode] = useState('')
+  const [appliedPromo, setAppliedPromo] = useState(null)
+  const [promoError, setPromoError] = useState(null)
+  const [validatingPromo, setValidatingPromo] = useState(false)
+  const [promotions, setPromotions] = useState([])
+  const [loadingPromos, setLoadingPromos] = useState(false)
+
+  const discount = useMemo(() => {
+    if (!appliedPromo) return 0
+    let amt = 0
+    if (appliedPromo.discount_percentage > 0) {
+      amt = price * (appliedPromo.discount_percentage / 100)
+    } else if (appliedPromo.discount_amount > 0) {
+      amt = Number(appliedPromo.discount_amount)
+    }
+    if (appliedPromo.max_discount && amt > Number(appliedPromo.max_discount)) {
+      amt = Number(appliedPromo.max_discount)
+    }
+    if (amt > price) amt = price
+    return Math.round(amt)
+  }, [appliedPromo, price])
+
+  const netTotal = price - discount
+  const deposit = Math.round(netTotal * 0.3)
+  const remaining = netTotal - deposit
 
   useEffect(() => {
     if (!partnerConceptId) {
@@ -190,9 +222,56 @@ function ServiceDetail({ partnerConceptId }) {
       return
     }
 
-    setBookingStatus('booking')
+    // Reset promo states
+    setPromoCode('')
+    setAppliedPromo(null)
+    setPromoError(null)
+
+    // Load available promotions
+    setLoadingPromos(true)
+    getPromotions()
+      .then((data) => {
+        const active = (data || []).filter(
+          (p) => p.is_active && (!p.expired_at || new Date(p.expired_at) > new Date())
+        )
+        setPromotions(active)
+      })
+      .catch((err) => console.error('Lỗi khi tải mã giảm giá:', err))
+      .finally(() => setLoadingPromos(false))
+
+    setShowPaymentModal(true)
+  }
+
+  const handleApplyPromo = async (e) => {
+    e.preventDefault()
+    const code = promoCode.trim().toUpperCase()
+    if (!code) return
+
+    setValidatingPromo(true)
+    setPromoError(null)
     try {
-      // 1. Dọn giỏ hàng để tránh checkout nhầm các gói khác đang có trong giỏ
+      const promo = await validatePromoCode(code)
+      setAppliedPromo(promo)
+      setPromoCode('')
+    } catch (err) {
+      setPromoError(err.message || 'Mã giảm giá không hợp lệ')
+      setAppliedPromo(null)
+    } finally {
+      setValidatingPromo(false)
+    }
+  }
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null)
+    setPromoError(null)
+  }
+
+  const handleConfirmPayment = async (type) => {
+    // type: 'deposit' | 'full'
+    setShowPaymentModal(false)
+    setBookingStatus('booking') // Show spinner overlay
+    try {
+      // 1. Dọn giỏ hàng để tránh checkout nhầm các gói khác
       await clearCart()
 
       // 2. Thêm gói dịch vụ hiện tại vào giỏ hàng
@@ -200,26 +279,46 @@ function ServiceDetail({ partnerConceptId }) {
 
       // 3. Thực hiện checkout
       const bookingTimeIso = new Date(`${bookingDate}T${bookingTime}:00`).toISOString()
-      const bookings = await checkoutCart({ booking_time: bookingTimeIso })
+      const bookings = await checkoutCart({ 
+        booking_time: bookingTimeIso,
+        promotion_id: appliedPromo ? appliedPromo.id : undefined
+      })
 
       if (!bookings || bookings.length === 0) {
         throw new Error('Không tạo được đơn đặt lịch')
       }
 
-      const newBooking = bookings[0]
-
-      // 4. Lấy link thanh toán cọc VNPay (30%)
-      const { url } = await createPaymentUrl(newBooking.id, 'deposit')
-
-      // 5. Phát sự kiện cập nhật giỏ hàng cho Header (giỏ hiện đang trống)
+      const createdBooking = bookings[0]
       window.dispatchEvent(new CustomEvent('matcha-cart-change'))
 
-      // 6. Chuyển hướng trình duyệt sang cổng thanh toán VNPay
-      window.location.href = url
+      // 4. Gọi API để cập nhật payment status trong DB
+      await mockConfirmPayment(createdBooking.id, type)
+
+      setPaymentSuccess({ type, amount: type === 'deposit' ? deposit : netTotal, total: netTotal })
+      setShowSuccessScreen(true)
     } catch (err) {
       alert('Đặt lịch thất bại: ' + err.message)
+    } finally {
       setBookingStatus(null)
+      setAppliedPromo(null)
     }
+  }
+
+  const handleChatWithPartner = (event) => {
+    event.preventDefault()
+    if (!authUser) {
+      window.history.pushState({}, '', '/login')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+      return
+    }
+
+    window.history.pushState({
+      partnerId: partner?.id || partnerConcept?.partner_id,
+      partnerConceptId: partnerConceptId,
+      serviceName: conceptName,
+      partnerName: partnerName
+    }, '', '/chat')
+    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
   if (loading) return <LoadingSkeleton />
@@ -370,9 +469,8 @@ function ServiceDetail({ partnerConceptId }) {
                 type="button"
                 role="tab"
                 aria-selected={activeTab === tab.id}
-                className={`service-tabs__item ${
-                  activeTab === tab.id ? 'service-tabs__item--active' : ''
-                }`}
+                className={`service-tabs__item ${activeTab === tab.id ? 'service-tabs__item--active' : ''
+                  }`}
                 onClick={() => setActiveTab(tab.id)}
               >
                 {tab.label}
@@ -594,10 +692,10 @@ function ServiceDetail({ partnerConceptId }) {
                 {cartStatus === 'adding'
                   ? 'Đang thêm...'
                   : cartStatus === 'success'
-                  ? '✓ Đã thêm vào giỏ!'
-                  : cartStatus === 'error'
-                  ? '✗ Thêm thất bại'
-                  : 'Thêm vào giỏ hàng'}
+                    ? '✓ Đã thêm vào giỏ!'
+                    : cartStatus === 'error'
+                      ? '✗ Thêm thất bại'
+                      : 'Thêm vào giỏ hàng'}
               </button>
 
               <button
@@ -624,22 +722,73 @@ function ServiceDetail({ partnerConceptId }) {
                 <span>⚡</span>
                 {bookingStatus === 'booking' ? 'Đang xử lý...' : 'Đặt lịch & Thanh toán cọc'}
               </button>
+
+              <button
+                type="button"
+                onClick={handleChatWithPartner}
+                style={{
+                  minHeight: '52px',
+                  borderRadius: '999px',
+                  background: '#fcfaf6',
+                  color: '#1f1713',
+                  border: '1.5px solid #ded2c3',
+                  fontSize: '16px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.borderColor = '#1f1713' }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = '#ded2c3' }}
+              >
+                <span>💬</span> Nhắn tin tư vấn
+              </button>
             </div>
           ) : (
-            <a className="service-sidebar__ghost" href="/login">
-              <span aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M8.5 18.5c-2.8 0-5-2.1-5-4.8 0-2.7 2.2-4.8 5-4.8.6-3.3 3.5-5.7 7-5.7 3.9 0 7 3 7 6.7 0 3.7-3.1 6.7-7 6.7h-7Z"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              Đăng nhập để đặt dịch vụ
-            </a>
+            <div style={{ display: 'grid', gap: '12px' }}>
+              <a className="service-sidebar__ghost" href="/login" style={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center' }}>
+                <span aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M8.5 18.5c-2.8 0-5-2.1-5-4.8 0-2.7 2.2-4.8 5-4.8.6-3.3 3.5-5.7 7-5.7 3.9 0 7 3 7 6.7 0 3.7-3.1 6.7-7 6.7h-7Z"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                Đăng nhập để đặt dịch vụ
+              </a>
+              <button
+                type="button"
+                onClick={handleChatWithPartner}
+                style={{
+                  minHeight: '52px',
+                  borderRadius: '999px',
+                  background: '#fcfaf6',
+                  color: '#1f1713',
+                  border: '1.5px solid #ded2c3',
+                  fontSize: '16px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.borderColor = '#1f1713' }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = '#ded2c3' }}
+              >
+                <span>💬</span> Nhắn tin tư vấn
+              </button>
+            </div>
           )}
 
           {cartStatus === 'success' && (
@@ -690,6 +839,206 @@ function ServiceDetail({ partnerConceptId }) {
       </section>
 
       <Footer />
+
+      {/* ── Processing Overlay ───────────────────────────────────────── */}
+      {bookingStatus === 'booking' && (
+        <div className="sd-processing-overlay">
+          <div className="sd-processing-box">
+            <div className="sd-processing-spinner" />
+            <p>Đang tạo đơn đặt lịch...</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Payment Modal ────────────────────────────────────────────── */}
+      {showPaymentModal && (
+        <div className="sd-modal-overlay" onClick={() => { setShowPaymentModal(false); setAppliedPromo(null); setPromoCode(''); setPromoError(null); }}>
+          <div className="sd-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sd-modal__header">
+              <h2>Chọn hình thức thanh toán</h2>
+              <button
+                className="sd-modal__close"
+                type="button"
+                onClick={() => { setShowPaymentModal(false); setAppliedPromo(null); setPromoCode(''); setPromoError(null); }}
+                aria-label="Đóng"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="sd-modal__price-breakdown">
+              <div className="sd-price-row">
+                <span>Tổng tiền:</span>
+                <span>{formatPrice(price)}</span>
+              </div>
+              {discount > 0 && (
+                <div className="sd-price-row sd-price-row--discount">
+                  <span>Giảm giá:</span>
+                  <span>-{formatPrice(discount)}</span>
+                </div>
+              )}
+              <div className="sd-price-row sd-price-row--total">
+                <span>Thành tiền:</span>
+                <strong>{formatPrice(netTotal)}</strong>
+              </div>
+            </div>
+
+            {/* Khung nhập mã giảm giá */}
+            <div className="sd-modal__promo-container">
+              {!appliedPromo ? (
+                <>
+                  <form className="sd-modal__promo-form" onSubmit={handleApplyPromo}>
+                    <input
+                      type="text"
+                      placeholder="Nhập mã giảm giá (VD: MATCHAFREE)..."
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value)}
+                      disabled={validatingPromo}
+                    />
+                    <button type="submit" disabled={validatingPromo || !promoCode.trim()}>
+                      {validatingPromo ? 'Áp dụng...' : 'Áp dụng'}
+                    </button>
+                  </form>
+
+                  {/* Chọn mã giảm giá khả dụng */}
+                  <div className="sd-modal__promos-select">
+                    <h3>Hoặc chọn mã giảm giá khả dụng:</h3>
+                    {loadingPromos ? (
+                      <p className="sd-promos-loading">Đang tải mã giảm giá...</p>
+                    ) : promotions.length === 0 ? (
+                      <p className="sd-promos-empty">Chưa có mã giảm giá nào khả dụng.</p>
+                    ) : (
+                      <div className="sd-promos-coupon-grid">
+                        {promotions.map((promo) => (
+                          <button
+                            key={promo.id}
+                            type="button"
+                            className="sd-promo-coupon-card"
+                            onClick={() => {
+                              setAppliedPromo(promo);
+                              setPromoError(null);
+                            }}
+                          >
+                            <div className="sd-coupon-left">
+                              <strong>{promo.code}</strong>
+                              <span>{promo.description || 'Giảm giá đặc biệt'}</span>
+                            </div>
+                            <div className="sd-coupon-right">
+                              <strong>
+                                {promo.discount_percentage > 0
+                                  ? `-${promo.discount_percentage}%`
+                                  : `-${formatPrice(promo.discount_amount)}`
+                                }
+                              </strong>
+                              <span>Áp dụng</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="sd-modal__promo-active">
+                  <div className="sd-promo-active-badge">
+                    <span>🏷️</span>
+                    <strong>{appliedPromo.code}</strong>
+                    <span className="sd-promo-active-discount">
+                      (-{appliedPromo.discount_percentage > 0 
+                        ? `${appliedPromo.discount_percentage}%` 
+                        : formatPrice(appliedPromo.discount_amount)})
+                    </span>
+                  </div>
+                  <button type="button" onClick={handleRemovePromo} className="sd-promo-active-remove">
+                    ✕ Gỡ
+                  </button>
+                </div>
+              )}
+              {promoError && <p className="sd-promo-error-msg">{promoError}</p>}
+            </div>
+
+            <div className="sd-modal__options">
+              {/* Đặt cọc 30% */}
+              <button
+                type="button"
+                className="sd-pay-option sd-pay-option--deposit"
+                onClick={() => handleConfirmPayment('deposit')}
+              >
+                <span className="sd-pay-option__icon">💰</span>
+                <div className="sd-pay-option__body">
+                  <strong>Đặt cọc 30%</strong>
+                  <span>{formatPrice(deposit)}</span>
+                  <p>Thanh toán số còn lại {formatPrice(remaining)} sau khi xác nhận lịch</p>
+                </div>
+                <span className="sd-pay-option__arrow">→</span>
+              </button>
+
+              {/* Thanh toán 100% */}
+              <button
+                type="button"
+                className="sd-pay-option sd-pay-option--full"
+                onClick={() => handleConfirmPayment('full')}
+              >
+                <span className="sd-pay-option__icon">✅</span>
+                <div className="sd-pay-option__body">
+                  <strong>Thanh toán 100%</strong>
+                  <span>{formatPrice(netTotal)}</span>
+                  <p>Thanh toán toàn bộ ngay, ưu tiên xếp lịch sớm hơn</p>
+                </div>
+                <span className="sd-pay-option__arrow">→</span>
+              </button>
+            </div>
+
+            <p className="sd-modal__note">🔒 Thanh toán được bảo mật và xử lý an toàn</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Success Screen ───────────────────────────────────────────── */}
+      {showSuccessScreen && paymentSuccess && (
+        <div className="sd-success-overlay">
+          <div className="sd-success-card">
+            <div className="sd-success-icon">
+              <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="26" cy="26" r="25" stroke="#1bc48f" strokeWidth="2" fill="rgba(27,196,143,0.08)" />
+                <path d="M15 26.5l8 8 14-16" stroke="#1bc48f" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="sd-checkmark" />
+              </svg>
+            </div>
+            <h2>Thanh toán thành công!</h2>
+            <p className="sd-success-type">
+              {paymentSuccess.type === 'deposit' ? '💰 Đặt cọc 30%' : '✅ Thanh toán 100%'}
+            </p>
+            <div className="sd-success-amount">
+              <span>Số tiền</span>
+              <strong>{formatPrice(paymentSuccess.amount)}</strong>
+            </div>
+            <p className="sd-success-note">
+              🎉 Đặt lịch thành công! Ekip của chúng tôi sẽ liên hệ xác nhận lịch chụp sớm nhất.
+            </p>
+            <div className="sd-success-actions">
+              <button
+                type="button"
+                className="sd-success-btn sd-success-btn--primary"
+                onClick={() => setShowSuccessScreen(false)}
+              >
+                Tiếp tục xem dịch vụ
+              </button>
+              <a
+                href="/"
+                className="sd-success-btn sd-success-btn--secondary"
+                onClick={(e) => {
+                  e.preventDefault()
+                  setShowSuccessScreen(false)
+                  window.history.pushState({}, '', '/')
+                  window.dispatchEvent(new PopStateEvent('popstate'))
+                }}
+              >
+                Về trang chủ
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

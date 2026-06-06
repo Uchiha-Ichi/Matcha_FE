@@ -122,3 +122,64 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Service card images & spinner ── */
+.partner-service-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+
+.partner-service-img {
+  width: 90px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #ddd1c4;
+}
+
+.spinner-loader {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ffffff;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Clickable element hover effects ── */
+.partner-service-manage-card h2.clickable {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.partner-service-manage-card h2.clickable:hover {
+  color: #8b735f;
+  text-decoration: underline;
+}
+
+.partner-service-images.clickable {
+  cursor: pointer;
+}
+
+.partner-service-images.clickable img {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.partner-service-images.clickable img:hover {
+  transform: scale(1.05);
+  opacity: 0.95;
+}

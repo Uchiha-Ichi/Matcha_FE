@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { io } from 'socket.io-client'
 import Header from '../../components/Header.jsx'
 import { getAuthUser } from '../../utils/auth.js'
+import { getMyPartner } from '../../utils/api.js'
+import { PartnerDashboardHeader } from '../partner_dashboard/partner_dashboard.jsx'
 import './chat.css'
 
 const navigate = (event, path) => {
@@ -19,6 +21,7 @@ function Chat() {
   const authUser = getAuthUser()
   const authUserId = authUser?.id
   const socketRef = useRef(null)
+  const messagesEndRef = useRef(null)
 
   const [conversations, setConversations] = useState([])
   const [activeConversationId, setActiveConversationId] = useState(null)
@@ -27,6 +30,13 @@ function Chat() {
   const [connected, setConnected] = useState(false)
   const [loadingConv, setLoadingConv] = useState(true)
   const [loadingMsg, setLoadingMsg] = useState(false)
+  const [partner, setPartner] = useState(null)
+
+  useEffect(() => {
+    if (authUser?.role?.toLowerCase() === 'partner') {
+      getMyPartner().then(setPartner).catch(console.error)
+    }
+  }, [authUserId, authUser?.role])
 
   // Đọc state redirect từ OrderHistory hoặc ServiceDetail
   const redirectState = useMemo(() => {
@@ -65,10 +75,11 @@ function Chat() {
       console.log('[Chat] Connected to server socket successfully')
 
       // Nếu có redirectState chuyển từ trang khác sang (muốn tạo/tìm room chat)
-      if (redirectState && redirectState.partnerId) {
-        console.log('[Chat] Creating or getting conversation with partner:', redirectState.partnerId)
+      if (redirectState && (redirectState.partnerId || redirectState.userId)) {
+        console.log('[Chat] Creating or getting conversation. Partner ID:', redirectState.partnerId, 'User ID:', redirectState.userId)
         socket.emit('create_conversation', {
-          partner_id: Number(redirectState.partnerId),
+          partner_id: redirectState.partnerId ? Number(redirectState.partnerId) : undefined,
+          user_id: redirectState.userId ? Number(redirectState.userId) : undefined,
           booking_id: redirectState.bookingId ? Number(redirectState.bookingId) : undefined
         })
       } else {
@@ -104,7 +115,7 @@ function Chat() {
       setLoadingConv(false)
 
       const currentActiveId = activeConversationIdRef.current
-      if (convs.length > 0 && !currentActiveId && (!redirectState || !redirectState.partnerId)) {
+      if (convs.length > 0 && !currentActiveId && (!redirectState || (!redirectState.partnerId && !redirectState.userId))) {
         setActiveConversationId(convs[0].id)
       }
     })
@@ -200,6 +211,11 @@ function Chat() {
     }
   }, [activeConversationId])
 
+  // Tự động cuộn xuống cuối danh sách tin nhắn khi có cập nhật
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+  }, [messages])
+
   // 3. Gửi tin nhắn
   const handleSend = (event) => {
     event.preventDefault()
@@ -245,7 +261,11 @@ function Chat() {
 
   return (
     <main className="chat-page">
-      <Header />
+      {authUser?.role?.toLowerCase() === 'partner' ? (
+        <PartnerDashboardHeader partner={partner} activePath="/chat" />
+      ) : (
+        <Header />
+      )}
 
       <section className="chat-shell">
         <aside className="chat-sidebar">
@@ -339,16 +359,28 @@ function Chat() {
               </div>
             </header>
 
-            {activeConversation.booking && (
+            {(activeConversation.booking || (redirectState?.serviceName && (activeConversation.partner?.id === Number(redirectState.partnerId) || activeConversation.partner_id === Number(redirectState.partnerId)))) && (
               <div className="chat-booking-strip">
                 <span>Đang trao đổi về</span>
-                <strong>{activeConversation.booking.details?.[0]?.partner_concept?.concept?.name || 'Dịch vụ chụp ảnh'}</strong>
-                <a
-                  href="/order-history"
-                  onClick={(event) => navigate(event, '/order-history')}
-                >
-                  Xem đơn hàng
-                </a>
+                <strong>
+                  {activeConversation.booking?.details?.[0]?.partner_concept?.concept?.name || 
+                   redirectState.serviceName}
+                </strong>
+                {activeConversation.booking ? (
+                  <a
+                    href={authUser?.role?.toLowerCase() === 'partner' ? '/partner-bookings' : '/order-history'}
+                    onClick={(event) => navigate(event, authUser?.role?.toLowerCase() === 'partner' ? '/partner-bookings' : '/order-history')}
+                  >
+                    Xem đơn hàng
+                  </a>
+                ) : (
+                  <a
+                    href={`/services/${redirectState.partnerConceptId}`}
+                    onClick={(event) => navigate(event, `/services/${redirectState.partnerConceptId}`)}
+                  >
+                    Xem dịch vụ
+                  </a>
+                )}
               </div>
             )}
 
@@ -362,20 +394,23 @@ function Chat() {
                   Bắt đầu cuộc trò chuyện. Hãy gửi tin nhắn đầu tiên!
                 </div>
               ) : (
-                messages.map((message) => {
-                  const isMe = message.user?.id === authUser.id
-                  return (
-                    <article
-                      key={message.id}
-                      className={`chat-bubble ${isMe ? 'chat-bubble--me' : 'chat-bubble--partner'}`}
-                    >
-                      <p>{message.content}</p>
-                      <span>
-                        {new Date(message.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </article>
-                  )
-                })
+                <>
+                  {messages.map((message) => {
+                    const isMe = message.user?.id === authUser.id
+                    return (
+                      <article
+                        key={message.id}
+                        className={`chat-bubble ${isMe ? 'chat-bubble--me' : 'chat-bubble--partner'}`}
+                      >
+                        <p>{message.content}</p>
+                        <span>
+                          {new Date(message.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </article>
+                    )
+                  })}
+                  <div ref={messagesEndRef} />
+                </>
               )}
             </div>
 
