@@ -29,6 +29,13 @@ const navigate = (event, path, state = {}) => {
 
 const badges = ['Matcha gợi ý', 'Mới', 'Phổ biến']
 
+const normalizeText = (value) =>
+  String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+
 function SkeletonCard() {
   return (
     <article className="service-card skeleton-card">
@@ -50,6 +57,8 @@ function Homepage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [aiQuery, setAiQuery] = useState('')
+  const [catalogSearchInput, setCatalogSearchInput] = useState('')
+  const [catalogSearchTerm, setCatalogSearchTerm] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -75,6 +84,9 @@ function Homepage() {
         const items = (partnerConcepts ?? []).map((pc, index) => {
           const partner = partnerById.get(pc.partner?.id ?? pc.partner_id)
           const concept = conceptById.get(pc.concept?.id ?? pc.concept_id)
+          const categoryName = partner?.category?.name ?? pc.partner?.category?.name ?? ''
+          const conceptName = concept?.name ?? pc.concept?.name ?? ''
+          const title = conceptName || 'Dịch vụ'
 
           // Resolve image: API image_des → partner cover → fallback
           const image =
@@ -85,7 +97,7 @@ function Homepage() {
 
           return {
             id: pc.id,
-            title: concept?.name ?? 'Dịch vụ',
+            title,
             studioName: partner?.band_name ?? 'Matcha Studio',
             location: partner?.location_name ?? 'Việt Nam',
             duration: pc.time ?? '—',
@@ -94,6 +106,17 @@ function Homepage() {
             rating: partner?.rating_avg > 0 ? Number(partner.rating_avg).toFixed(1) : '5.0',
             badge: badges[index % badges.length],
             partnerConceptId: pc.id,
+            categoryName,
+            conceptName,
+            searchableText: normalizeText([
+              title,
+              categoryName,
+              conceptName,
+              partner?.band_name,
+              partner?.location_name,
+              pc.time,
+              pc.price,
+            ].join(' ')),
           }
         })
 
@@ -122,6 +145,26 @@ function Homepage() {
     'Lịch trống cập nhật hằng ngày theo nhu cầu đặt lịch',
     'Tư vấn nhanh để ghép đúng studio, makeup và concept',
   ]
+
+  const filteredServiceItems = serviceItems.filter((service) => {
+    const activeFilter = normalizeText(activeTag)
+    const isAllFilter = activeTag === filterTags[0]
+    const matchesTag =
+      isAllFilter ||
+      normalizeText(service.categoryName) === activeFilter ||
+      normalizeText(service.conceptName) === activeFilter ||
+      normalizeText(service.title) === activeFilter
+
+    const query = normalizeText(catalogSearchTerm)
+    const matchesSearch = !query || service.searchableText.includes(query)
+
+    return matchesTag && matchesSearch
+  })
+
+  const handleCatalogSearch = (event) => {
+    event.preventDefault()
+    setCatalogSearchTerm(catalogSearchInput)
+  }
 
   return (
     <main className="homepage">
@@ -204,15 +247,26 @@ function Homepage() {
             ))}
           </div>
 
-          <div className="catalog-search-bar" aria-hidden="true">
+          <form className="catalog-search-bar" onSubmit={handleCatalogSearch}>
             <div className="catalog-search-input">
               <span className="catalog-search-icon">⌕</span>
-              <span>Tìm dịch vụ, concept, studio hoặc địa điểm...</span>
+              <input
+                type="search"
+                value={catalogSearchInput}
+                onChange={(event) => {
+                  setCatalogSearchInput(event.target.value)
+                  if (!event.target.value.trim()) {
+                    setCatalogSearchTerm('')
+                  }
+                }}
+                placeholder="Tìm dịch vụ, concept, studio hoặc địa điểm..."
+                aria-label="Tìm dịch vụ"
+              />
             </div>
-            <button className="catalog-search-button" type="button">
+            <button className="catalog-search-button" type="submit">
               Tìm kiếm
             </button>
-          </div>
+          </form>
 
           {error && (
             <div className="api-error">
@@ -223,7 +277,7 @@ function Homepage() {
           <div className="cards-grid">
             {loading
               ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
-              : serviceItems.map((service) => (
+              : filteredServiceItems.map((service) => (
                   <article
                     key={service.id}
                     className="service-card"
@@ -275,6 +329,12 @@ function Homepage() {
           {!loading && serviceItems.length === 0 && !error && (
             <div className="empty-state">
               <p>Chưa có dịch vụ nào. Hãy quay lại sau nhé!</p>
+            </div>
+          )}
+
+          {!loading && serviceItems.length > 0 && filteredServiceItems.length === 0 && !error && (
+            <div className="empty-state">
+              <p>Không tìm thấy dịch vụ phù hợp với bộ lọc hiện tại.</p>
             </div>
           )}
 
