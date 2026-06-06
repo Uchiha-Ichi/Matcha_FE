@@ -155,9 +155,20 @@ function ServiceDetail({ partnerConceptId }) {
       return
     }
 
+    if (!bookingDate || !bookingTime) {
+      alert('Vui lòng chọn đầy đủ ngày và giờ chụp ảnh trước khi thêm vào giỏ hàng!')
+      return
+    }
+
     setCartStatus('adding')
     try {
       await addCartItem(partnerConceptId, 1)
+      // Lưu thông tin booking time vào localStorage theo partnerConceptId
+      const bookingTimeIso = new Date(`${bookingDate}T${bookingTime}:00`).toISOString()
+      const stored = JSON.parse(localStorage.getItem('matcha_booking_times') ?? '{}')
+      stored[partnerConceptId] = { date: bookingDate, time: bookingTime, iso: bookingTimeIso }
+      localStorage.setItem('matcha_booking_times', JSON.stringify(stored))
+
       setCartStatus('success')
       window.dispatchEvent(new CustomEvent('matcha-cart-change'))
       setTimeout(() => setCartStatus(null), 3000)
@@ -286,6 +297,8 @@ function ServiceDetail({ partnerConceptId }) {
     location: locationName,
     image: partnerConcept?.image_des || portfolioImages[0],
   }
+
+  const scheduleReady = bookingDate && bookingTime
 
   return (
     <main className="service-detail-page">
@@ -473,7 +486,7 @@ function ServiceDetail({ partnerConceptId }) {
         </div>
 
         <aside className="service-sidebar">
-          {/* Widget chọn lịch chụp */}
+          {/* Widget chọn lịch chụp – bắt buộc chọn trước khi thêm giỏ */}
           <div className="service-sidebar__scheduler" style={{
             background: '#fff',
             border: '1px solid #ddd1c4',
@@ -482,16 +495,19 @@ function ServiceDetail({ partnerConceptId }) {
             marginBottom: '16px',
             boxShadow: '0 12px 28px rgba(110, 83, 43, 0.04)'
           }}>
-            <h3 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '14px', color: '#1f1713', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '4px', color: '#1f1713', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>🗓</span> Chọn lịch chụp ảnh
             </h3>
-            
+            <p style={{ fontSize: '12px', color: '#9b8070', fontWeight: '600', marginBottom: '14px', marginTop: 0 }}>
+              Bắt buộc chọn trước khi thêm vào giỏ hàng
+            </p>
+
             <label style={{ display: 'grid', gap: '6px', marginBottom: '14px' }}>
               <span style={{ fontSize: '13px', fontWeight: '700', color: '#735f52' }}>Chọn ngày</span>
               <input
                 type="date"
                 value={bookingDate}
-                min={new Date(Date.now() + 86400000).toISOString().split('T')[0]} // Từ ngày mai
+                min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
                 onChange={(e) => setBookingDate(e.target.value)}
                 style={{
                   minHeight: '44px',
@@ -504,7 +520,7 @@ function ServiceDetail({ partnerConceptId }) {
                 }}
               />
             </label>
-            
+
             <div style={{ display: 'grid', gap: '6px' }}>
               <span style={{ fontSize: '13px', fontWeight: '700', color: '#735f52' }}>Chọn khung giờ</span>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
@@ -531,6 +547,27 @@ function ServiceDetail({ partnerConceptId }) {
                 ))}
               </div>
             </div>
+
+            {scheduleReady && (
+              <div style={{
+                marginTop: '12px',
+                padding: '10px 14px',
+                background: '#e6f9ef',
+                border: '1px solid #9de3b8',
+                borderRadius: '10px',
+                fontSize: '13px',
+                fontWeight: '700',
+                color: '#1a6e3a',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <span>✓</span>
+                <span>
+                  {new Date(bookingDate).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })} · {bookingTime}
+                </span>
+              </div>
+            )}
           </div>
 
           {authUser ? (

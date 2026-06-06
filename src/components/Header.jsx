@@ -59,10 +59,8 @@ function Header() {
 
     clearAuthUser()
 
-    if (window.location.pathname === '/profile' || window.location.pathname === '/cart' || window.location.pathname === '/order-history') {
-      window.history.pushState({}, '', '/')
-      window.dispatchEvent(new PopStateEvent('popstate'))
-    }
+    window.history.pushState({}, '', '/')
+    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
   return (

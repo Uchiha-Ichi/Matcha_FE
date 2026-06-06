@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getCart, removeCartItem, updateCartItem, checkoutCart, createPaymentUrl } from '../../utils/api.js'
+import { getCart, removeCartItem, checkoutCart, createPaymentUrl } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
 import './cart.css'
 
@@ -20,6 +20,27 @@ const navigate = (event, path) => {
   if (window.location.pathname === path) return
   window.history.pushState({}, '', path)
   window.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+/** Đọc booking times đã lưu từ localStorage */
+function getBookingTimes() {
+  try {
+    return JSON.parse(localStorage.getItem('matcha_booking_times') ?? '{}')
+  } catch {
+    return {}
+  }
+}
+
+/** Format ngày + giờ đẹp cho hiển thị */
+function formatBookingDisplay(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return null
+  try {
+    const date = new Date(`${dateStr}T${timeStr}:00`)
+    const dayLabel = date.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })
+    return `${dayLabel} · ${timeStr}`
+  } catch {
+    return `${dateStr} · ${timeStr}`
+  }
 }
 
 function CartSkeleton() {
@@ -50,10 +71,9 @@ function Cart() {
   const [selected, setSelected] = useState(new Set())  // Set of cart item IDs
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [bookingDate, setBookingDate] = useState('')
-  const [bookingTime, setBookingTime] = useState('')
   const [checkingOut, setCheckingOut] = useState(false)
   const [checkoutMsg, setCheckoutMsg] = useState(null)
+  const [bookingTimes, setBookingTimes] = useState({})
 
   // Normalise API cart items into display shape
   const cartItems = useMemo(() => {
@@ -71,7 +91,6 @@ function Cart() {
         location: partner.location_name ?? 'Việt Nam',
         duration: pc.time ?? '—',
         price: Number(pc.price ?? 0),
-        quantity: item.quantity ?? 1,
         image: pc.image_des ?? imageFallbacks[index % imageFallbacks.length],
       }
     })
@@ -98,13 +117,16 @@ function Cart() {
     }
   }
 
-  useEffect(() => { loadCart() }, [])
+  useEffect(() => {
+    loadCart()
+    setBookingTimes(getBookingTimes())
+  }, [])
 
   const selectedItems = cartItems.filter((item) => selected.has(item.id))
   const allSelected = cartItems.length > 0 && selectedItems.length === cartItems.length
 
   const subtotal = useMemo(
-    () => selectedItems.reduce((total, item) => total + item.price * item.quantity, 0),
+    () => selectedItems.reduce((total, item) => total + item.price, 0),
     [selectedItems],
   )
   const deposit = Math.round(subtotal * 0.3)
@@ -120,21 +142,17 @@ function Cart() {
   const toggleAll = () =>
     setSelected(allSelected ? new Set() : new Set(cartItems.map((i) => i.id)))
 
-  const handleUpdateQuantity = async (item, direction) => {
-    const newQty = Math.max(1, item.quantity + direction)
-    try {
-      await updateCartItem(item.id, newQty)
-      window.dispatchEvent(new CustomEvent('matcha-cart-change'))
-      await loadCart()
-    } catch {
-      /* silent – UI optimistic update not needed for simplicity */
-    }
-  }
-
-  const handleRemove = async (itemId) => {
+  const handleRemove = async (itemId, partnerConceptId) => {
     try {
       await removeCartItem(itemId)
       setSelected((prev) => { const next = new Set(prev); next.delete(itemId); return next })
+      // Xóa booking time tương ứng khỏi localStorage
+      if (partnerConceptId) {
+        const stored = getBookingTimes()
+        delete stored[partnerConceptId]
+        localStorage.setItem('matcha_booking_times', JSON.stringify(stored))
+        setBookingTimes({ ...stored })
+      }
       window.dispatchEvent(new CustomEvent('matcha-cart-change'))
       await loadCart()
     } catch (err) {
@@ -144,15 +162,19 @@ function Cart() {
 
   const handleCheckout = async () => {
     if (selectedItems.length === 0) return
-    if (!bookingDate || !bookingTime) {
-      alert('Vui lòng chọn đầy đủ ngày và giờ chụp ảnh để đặt lịch!')
+
+    // Lấy booking time từ item đầu tiên được chọn (hoặc item đầu tiên nếu chỉ có 1)
+    const firstSelected = selectedItems[0]
+    const bt = bookingTimes[firstSelected?.partnerConceptId]
+    if (!bt?.date || !bt?.time) {
+      alert('Không tìm thấy thông tin lịch chụp. Vui lòng quay lại trang dịch vụ để chọn ngày giờ.')
       return
     }
 
     setCheckingOut(true)
     setCheckoutMsg(null)
     try {
-      const bookingTimeIso = new Date(`${bookingDate}T${bookingTime}:00`).toISOString()
+      const bookingTimeIso = bt.iso ?? new Date(`${bt.date}T${bt.time}:00`).toISOString()
       const bookings = await checkoutCart({ booking_time: bookingTimeIso })
 
       window.dispatchEvent(new CustomEvent('matcha-cart-change'))
@@ -254,51 +276,52 @@ function Cart() {
             </section>
           ) : (
             <div className="cart-list">
-              {cartItems.map((item) => (
-                <article key={item.id} className="cart-item">
-                  <label className="cart-item__select" aria-label={`Chọn ${item.serviceName}`}>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(item.id)}
-                      onChange={() => toggleItem(item.id)}
-                    />
-                  </label>
+              {cartItems.map((item) => {
+                const bt = bookingTimes[item.partnerConceptId]
+                const bookingDisplay = bt ? formatBookingDisplay(bt.date, bt.time) : null
+                return (
+                  <article key={item.id} className="cart-item">
+                    <label className="cart-item__select" aria-label={`Chọn ${item.serviceName}`}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(item.id)}
+                        onChange={() => toggleItem(item.id)}
+                      />
+                    </label>
 
-                  <img src={item.image} alt={item.serviceName} className="cart-item__image" />
+                    <img src={item.image} alt={item.serviceName} className="cart-item__image" />
 
-                  <div className="cart-item__body">
-                    <div className="cart-item__heading">
-                      <div>
-                        <span className="cart-item__tag">{item.category}</span>
-                        <h2>{item.serviceName}</h2>
-                        <p>{item.partnerName}</p>
-                      </div>
-                      <strong>{formatPrice(item.price)}</strong>
-                    </div>
-
-                    <div className="cart-item__meta">
-                      {item.location && <span>📍 {item.location}</span>}
-                      {item.duration && item.duration !== '—' && <span>⏱ {item.duration}</span>}
-                    </div>
-
-                    <div className="cart-item__actions">
-                      <div className="cart-stepper" aria-label="Số lượng">
-                        <button type="button" onClick={() => handleUpdateQuantity(item, -1)}>−</button>
-                        <span>{item.quantity}</span>
-                        <button type="button" onClick={() => handleUpdateQuantity(item, 1)}>+</button>
+                    <div className="cart-item__body">
+                      <div className="cart-item__heading">
+                        <div>
+                          <span className="cart-item__tag">{item.category}</span>
+                          <h2>{item.serviceName}</h2>
+                          <p>{item.partnerName}</p>
+                        </div>
+                        <strong>{formatPrice(item.price)}</strong>
                       </div>
 
-                      <button
-                        type="button"
-                        className="cart-remove"
-                        onClick={() => handleRemove(item.id)}
-                      >
-                        Xóa
-                      </button>
+                      <div className="cart-item__meta">
+                        {item.location && <span>📍 {item.location}</span>}
+                        {item.duration && item.duration !== '—' && <span>⏱ {item.duration}</span>}
+                        {bookingDisplay && (
+                          <span className="cart-item__booking-time">🗓 {bookingDisplay}</span>
+                        )}
+                      </div>
+
+                      <div className="cart-item__actions">
+                        <button
+                          type="button"
+                          className="cart-remove"
+                          onClick={() => handleRemove(item.id, item.partnerConceptId)}
+                        >
+                          🗑 Xóa khỏi giỏ
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                )
+              })}
             </div>
           )}
         </div>
@@ -325,66 +348,28 @@ function Cart() {
             </div>
           </dl>
 
-          {/* Widget chọn lịch chụp */}
-          <div className="cart-scheduler" style={{
-            background: '#fcfaf6',
-            border: '1px solid #e2d7c9',
-            borderRadius: '18px',
-            padding: '16px',
-            marginBottom: '20px',
-            display: 'grid',
-            gap: '12px'
-          }}>
-            <h3 style={{ fontSize: '15px', fontWeight: '800', margin: 0, color: '#1f1713', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>🗓</span> Chọn lịch chụp ảnh
-            </h3>
-            
-            <label style={{ display: 'grid', gap: '6px' }}>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#735f52' }}>Chọn ngày</span>
-              <input
-                type="date"
-                value={bookingDate}
-                min={new Date(Date.now() + 86400000).toISOString().split('T')[0]} // Từ ngày mai
-                onChange={(e) => setBookingDate(e.target.value)}
-                style={{
-                  minHeight: '44px',
-                  borderRadius: '12px',
-                  border: '1px solid #e2d7c9',
-                  padding: '0 12px',
-                  background: '#fff',
-                  fontFamily: 'inherit',
-                  fontWeight: '700'
-                }}
-              />
-            </label>
-            
-            <div style={{ display: 'grid', gap: '6px' }}>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#735f52' }}>Chọn khung giờ</span>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                {['08:00', '10:00', '14:00', '16:00'].map((slot) => (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() => setBookingTime(slot)}
-                    style={{
-                      minHeight: '38px',
-                      borderRadius: '10px',
-                      border: '1px solid',
-                      borderColor: bookingTime === slot ? '#1f1713' : '#e2d7c9',
-                      background: bookingTime === slot ? '#1f1713' : '#fff',
-                      color: bookingTime === slot ? '#fff' : '#6f6257',
-                      fontSize: '13px',
-                      fontWeight: '800',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    {slot}
-                  </button>
-                ))}
-              </div>
+          {/* Hiển thị lịch đã đặt của các dịch vụ được chọn */}
+          {selectedItems.length > 0 && (
+            <div className="cart-booking-summary">
+              <h3>
+                <span>🗓</span> Lịch chụp đã chọn
+              </h3>
+              {selectedItems.map((item) => {
+                const bt = bookingTimes[item.partnerConceptId]
+                const display = bt ? formatBookingDisplay(bt.date, bt.time) : null
+                return (
+                  <div key={item.id} className="cart-booking-summary__row">
+                    <span className="cart-booking-summary__name">{item.serviceName}</span>
+                    {display ? (
+                      <span className="cart-booking-summary__time">{display}</span>
+                    ) : (
+                      <span className="cart-booking-summary__missing">⚠ Chưa có lịch</span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
-          </div>
+          )}
 
           {checkoutMsg === 'success' && (
             <div className="cart-checkout-success">

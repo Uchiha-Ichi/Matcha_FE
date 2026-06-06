@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { setAuthUser } from '../../utils/auth.js'
-import { signIn, signUp, updateMe, getMe } from '../../utils/api.js'
+import { signIn, signUp, updateMe, getMe, getMyPartner } from '../../utils/api.js'
 import './login.css'
 
 const tabs = [
@@ -96,7 +96,17 @@ function Login({ closeHref = '/' }) {
 
       setAuthUser(userData)
       if (userData.role === 'Partner') {
-        navigateTo('/partner-dashboard')
+        // Kiểm tra đã có hồ sơ partner chưa
+        try {
+          const partnerProfile = await getMyPartner()
+          if (partnerProfile) {
+            navigateTo('/partner-dashboard')
+          } else {
+            navigateTo('/partner-setup')
+          }
+        } catch {
+          navigateTo('/partner-setup')
+        }
       } else if (userData.role === 'Customer') {
         navigateTo('/profile')
       } else {

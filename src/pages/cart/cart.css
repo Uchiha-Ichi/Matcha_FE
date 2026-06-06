@@ -223,48 +223,86 @@
   font-weight: 700;
 }
 
+.cart-item__booking-time {
+  background: #eaf4ff !important;
+  color: #1a5fa8 !important;
+  font-weight: 700;
+}
+
 .cart-item__actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   margin-top: 20px;
 }
 
-.cart-stepper {
-  display: inline-grid;
-  grid-template-columns: 38px 42px 38px;
-  min-height: 38px;
-  border: 1px solid #ddd1c4;
-  border-radius: 999px;
-  overflow: hidden;
-  background: #fcfaf6;
-}
-
-.cart-stepper button {
-  border: none;
-  background: transparent;
-  color: #191411;
-  font-size: 18px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.cart-stepper span {
-  display: grid;
-  place-items: center;
-  color: #191411;
-  font-size: 14px;
-  font-weight: 800;
-}
-
 .cart-remove {
-  border: none;
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border: 1.5px solid #f5c6c0;
+  border-radius: 999px;
+  background: #fff3f0;
   color: #b15a45;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   cursor: pointer;
+  transition: all 0.18s;
+}
+
+.cart-remove:hover {
+  background: #b15a45;
+  border-color: #b15a45;
+  color: #fff;
+}
+
+/* ── Booking summary in sidebar ───────────────────────────────────────────── */
+.cart-booking-summary {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f0f7ff;
+  border: 1px solid #b8d4f5;
+  border-radius: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.cart-booking-summary h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1a5fa8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cart-booking-summary__row {
+  display: grid;
+  gap: 2px;
+}
+
+.cart-booking-summary__name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f1713;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cart-booking-summary__time {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a5fa8;
+}
+
+.cart-booking-summary__missing {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c0392b;
 }
 
 .cart-summary {

@@ -32,6 +32,8 @@ function PartnerSchedule() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [newDate, setNewDate] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [adding, setAdding] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
@@ -68,11 +70,23 @@ function PartnerSchedule() {
   const addDateBlock = async (event) => {
     event.preventDefault()
     if (!newDate || !partner) return
+
+    if (startTime && endTime && startTime >= endTime) {
+      alert('Giờ kết thúc phải sau giờ bắt đầu!')
+      return
+    }
+    if ((startTime && !endTime) || (!startTime && endTime)) {
+      alert('Vui lòng nhập cả giờ bắt đầu và kết thúc, hoặc để trống cả hai để chặn cả ngày!')
+      return
+    }
+
     setAdding(true)
     try {
-      const created = await createDateBlock(partner.id, newDate)
+      const created = await createDateBlock(partner.id, newDate, startTime, endTime)
       setBlocks((prev) => [...prev, created])
       setNewDate('')
+      setStartTime('')
+      setEndTime('')
       showSuccess('Đã thêm lịch chặn.')
     } catch (err) {
       alert(`Thêm thất bại: ${err.message}`)
@@ -136,6 +150,33 @@ function PartnerSchedule() {
                 required
               />
             </label>
+
+            <div className="partner-time-fields" style={{ display: 'flex', gap: '1rem', margin: '1rem 0' }}>
+              <label style={{ flex: 1, margin: 0 }}>
+                <span style={{ fontSize: '0.85rem', color: '#6c757d', marginBottom: '0.25rem', display: 'block' }}>Giờ bắt đầu (tùy chọn)</span>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(event) => setStartTime(event.target.value)}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #ced4da' }}
+                />
+              </label>
+
+              <label style={{ flex: 1, margin: 0 }}>
+                <span style={{ fontSize: '0.85rem', color: '#6c757d', marginBottom: '0.25rem', display: 'block' }}>Giờ kết thúc (tùy chọn)</span>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(event) => setEndTime(event.target.value)}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #ced4da' }}
+                />
+              </label>
+            </div>
+            
+            <p style={{ fontSize: '0.8rem', color: '#6c757d', margin: '-0.5rem 0 1rem 0' }}>
+              * Để trống cả 2 ô giờ để chặn cả ngày.
+            </p>
+
             <button type="submit" disabled={adding || !partner}>
               {adding ? 'Đang thêm…' : 'Thêm lịch chặn'}
             </button>
@@ -146,8 +187,23 @@ function PartnerSchedule() {
               <article key={block.id}>
                 <div>
                   <span>BLOCK #{block.id}</span>
-                  <strong>{formatDate(block.date_block)}</strong>
-                  <p>Partner không nhận booking trong ngày này.</p>
+                  <strong>
+                    {formatDate(block.date_block)}{' '}
+                    {block.start_time && block.end_time ? (
+                      <span className="ps-block-time" style={{ color: '#dc3545', fontWeight: 600 }}>
+                        ({block.start_time.slice(0, 5)} - {block.end_time.slice(0, 5)})
+                      </span>
+                    ) : (
+                      <span className="ps-block-time" style={{ color: '#dc3545', fontWeight: 600 }}>
+                        (Cả ngày)
+                      </span>
+                    )}
+                  </strong>
+                  <p>
+                    {block.start_time && block.end_time
+                      ? `Partner không nhận booking từ ${block.start_time.slice(0, 5)} đến ${block.end_time.slice(0, 5)}.`
+                      : 'Partner không nhận booking trong ngày này.'}
+                  </p>
                 </div>
                 <button type="button" onClick={() => removeBlock(block.id)}>
                   Bỏ chặn

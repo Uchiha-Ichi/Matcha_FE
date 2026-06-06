@@ -124,10 +124,15 @@ export const getAuthStatus = () => apiFetch('/auth/me')
 
 // ── Date Blocks ───────────────────────────────────────────────────────────────
 export const getDateBlocks = () => apiFetch('/date-blocks')
-export const createDateBlock = (partnerId, date) =>
+export const createDateBlock = (partnerId, date, startTime, endTime) =>
   apiFetch('/date-blocks', {
     method: 'POST',
-    body: JSON.stringify({ partner: { id: partnerId }, date_block: date }),
+    body: JSON.stringify({
+      partner: { id: partnerId },
+      date_block: date,
+      start_time: startTime || undefined,
+      end_time: endTime || undefined,
+    }),
   })
 export const deleteDateBlock = (id) => apiFetch(`/date-blocks/${id}`, { method: 'DELETE' })
 
