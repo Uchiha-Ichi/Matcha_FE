@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getCart, removeCartItem, checkoutCart, mockConfirmPayment, validatePromoCode, getPromotions } from '../../utils/api.js'
+import { getCart, removeCartItem, checkoutCart, validatePromoCode, getPromotions, createPaymentUrl, getPayment, closePaymentQr } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
 import './cart.css'
 
@@ -14,6 +14,19 @@ const imageFallbacks = [
 
 const formatPrice = (value) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
+
+const formatCountdown = (milliseconds) => {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000))
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0')
+  const seconds = String(totalSeconds % 60).padStart(2, '0')
+  return `${minutes}:${seconds}`
+}
+const getQrExpiresAt = (qrPayment) => {
+  if (!qrPayment) return Date.now()
+  return qrPayment.payment?.expired_at
+    ? new Date(qrPayment.payment.expired_at).getTime()
+    : new Date(qrPayment.payment?.created_at ?? Date.now()).getTime() + 5 * 60 * 1000
+}
 
 const navigate = (event, path) => {
   event.preventDefault()
@@ -77,6 +90,9 @@ function Cart() {
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(null) // null | { type, amount }
   const [showSuccessScreen, setShowSuccessScreen] = useState(false)
+  const [qrPayment, setQrPayment] = useState(null)
+  const [paymentResult, setPaymentResult] = useState(null)
+  const [paymentNow, setPaymentNow] = useState(Date.now())
 
   const [promoCode, setPromoCode] = useState('')
   const [appliedPromo, setAppliedPromo] = useState(null)
@@ -245,10 +261,10 @@ function Cart() {
   }
 
   const handleConfirmPayment = async (type) => {
-    // type: 'deposit' | 'full' — không dùng VNPay sandbox
     setShowPaymentModal(false)
     setCheckingOut(true)
     setCheckoutMsg(null)
+    setPaymentResult(null)
     try {
       const firstSelected = selectedItems[0]
       const bt = bookingTimes[firstSelected?.partnerConceptId]
@@ -260,14 +276,17 @@ function Cart() {
       })
       window.dispatchEvent(new CustomEvent('matcha-cart-change'))
 
-      // Gọi mock-confirm để cập nhật payment status trong DB
       if (Array.isArray(bookings) && bookings.length > 0) {
-        await mockConfirmPayment(bookings[0].id, type)
+        const amount = type === 'deposit' ? deposit : netTotal
+        const paymentData = await createPaymentUrl(bookings[0].id, type)
+        setQrPayment({
+          ...paymentData,
+          type,
+          bookingId: bookings[0].id,
+          amount: paymentData.amount ?? amount,
+        })
       }
 
-      const amount = type === 'deposit' ? deposit : netTotal
-      setPaymentSuccess({ type, amount })
-      setShowSuccessScreen(true)
       await loadCart()
       setAppliedPromo(null)
     } catch (err) {
@@ -277,6 +296,102 @@ function Cart() {
     }
   }
 
+  const handleCloseQr = async () => {
+    if (!qrPayment) return
+    try {
+      await closePaymentQr({
+        paymentId: qrPayment.payment?.id,
+        paymentLinkId: qrPayment.paymentLinkId,
+        orderCode: qrPayment.orderCode,
+      })
+    } catch (err) {
+      console.error('Không thể đóng QR thanh toán:', err)
+    } finally {
+      setQrPayment(null)
+      setPaymentResult({
+        status: 'cancelled',
+        title: 'Đã đóng QR thanh toán',
+        message: 'Mã QR đã được hủy. Bạn có thể tạo mã mới khi muốn thanh toán lại.',
+      })
+    }
+  }
+
+  const handleCheckQrPayment = async () => {
+    if (!qrPayment?.payment?.id) return
+    try {
+      const payload = await getPayment(qrPayment.payment.id)
+      const payment = payload?.payment ?? payload
+      const status = payment?.status
+      if (status === 'paid' || status === 'partially_paid') {
+        setPaymentSuccess({ type: qrPayment.type, amount: Number(payment.amount_paid ?? qrPayment.amount) })
+        setQrPayment(null)
+        setShowSuccessScreen(true)
+        await loadCart()
+        return
+      }
+      setPaymentResult({
+        status: 'pending',
+        title: 'Chưa ghi nhận thanh toán',
+        message: 'Giao dịch vẫn đang chờ xác nhận. Nếu bạn đã chuyển khoản, vui lòng thử kiểm tra lại sau vài giây.',
+      })
+    } catch (err) {
+      setQrPayment(null)
+      setPaymentResult({
+        status: 'failed',
+        title: 'QR không còn hiệu lực',
+        message: err.message || 'Mã QR đã hết hạn hoặc đã bị hủy. Vui lòng tạo mã thanh toán mới.',
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (!qrPayment) return undefined
+    setPaymentNow(Date.now())
+    const timer = window.setInterval(() => setPaymentNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [qrPayment])
+
+
+  useEffect(() => {
+    if (!qrPayment?.payment?.id) return undefined
+
+    let cancelled = false
+    const pollQrPaymentStatus = async () => {
+      try {
+        const payload = await getPayment(qrPayment.payment.id)
+        const payment = payload?.payment ?? payload
+        const status = payment?.status
+        if (cancelled || (status !== 'paid' && status !== 'partially_paid')) return
+
+        setPaymentSuccess({ type: qrPayment.type, amount: Number(payment.amount_paid ?? qrPayment.amount) })
+        setQrPayment(null)
+        setShowSuccessScreen(true)
+        await loadCart()
+      } catch (err) {
+        if (!cancelled && Date.now() >= getQrExpiresAt(qrPayment)) {
+          setQrPayment(null)
+          setPaymentResult({
+            status: 'failed',
+            title: 'QR không còn hiệu lực',
+            message: err.message || 'Mã QR đã hết hạn hoặc đã bị hủy. Vui lòng tạo mã thanh toán mới.',
+          })
+        }
+      }
+    }
+
+    pollQrPaymentStatus()
+    const timer = window.setInterval(pollQrPaymentStatus, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [qrPayment])
+  const qrExpiresAt = getQrExpiresAt(qrPayment)
+  const qrCountdown = formatCountdown(qrExpiresAt - paymentNow)
+  const qrTransferContent = qrPayment?.payment?.raw_response?.data?.description
+    ?? qrPayment?.payment?.description
+    ?? qrPayment?.description
+    ?? `Matcha booking ${qrPayment?.bookingId ?? ''}`
   // Not logged in
   if (!authUser) {
     return (
@@ -537,6 +652,49 @@ function Cart() {
       )}
 
       {/* ── Payment Modal ─────────────────────────────────────────── */}
+
+      {qrPayment && (
+        <div className="payment-modal-overlay" onClick={handleCloseQr}>
+          <div className="payment-modal payment-qr-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="payment-modal__header">
+              <h2>Quét QR để thanh toán</h2>
+              <button className="payment-modal__close" type="button" onClick={handleCloseQr} aria-label="Đóng">×</button>
+            </div>
+            <div className="payment-qr-body">
+              <img
+                className="payment-qr-image"
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(qrPayment.qrCode)}`}
+                alt="QR thanh toán payOS"
+              />
+              <div className="payment-qr-info">
+                <span>Số tiền cần thanh toán</span>
+                <strong>{formatPrice(Number(qrPayment.amount ?? 0))}</strong>
+              </div>
+              <div className="payment-qr-countdown">
+                <span>Thời gian còn lại</span>
+                <strong>{qrCountdown}</strong>
+              </div>
+              <div className="payment-qr-bank-info">
+                <div><span>Ngân hàng</span><strong>BIDV</strong></div>
+                <div><span>Thụ hưởng</span><strong>Hoàng Huy Nhật</strong></div>
+                <div><span>Nội dung giao dịch</span><strong>{qrTransferContent}</strong></div>
+              </div>              <div className="payment-qr-actions payment-qr-actions--single">
+                <button type="button" onClick={handleCloseQr}>Đóng QR</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {paymentResult && !showSuccessScreen && (
+        <div className="payment-modal-overlay" onClick={() => setPaymentResult(null)}>
+          <div className="payment-result-card" onClick={(e) => e.stopPropagation()}>
+            <h2>{paymentResult.title}</h2>
+            <p>{paymentResult.message}</p>
+            <button type="button" onClick={() => setPaymentResult(null)}>Đóng</button>
+          </div>
+        </div>
+      )}
       {showPaymentModal && (
         <div className="payment-modal-overlay" onClick={() => { setShowPaymentModal(false); setAppliedPromo(null); setPromoCode(''); setPromoError(null); }}>
           <div className="payment-modal" onClick={(e) => e.stopPropagation()}>
