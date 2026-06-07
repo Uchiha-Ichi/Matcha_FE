@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { clearAuthUser } from '../../utils/auth.js'
 import {
   getAdminStats,
@@ -120,10 +120,161 @@ function AdminHeader({ activeTab, setActiveTab }) {
   )
 }
 
+function RevenueChart({ data }) {
+  const maxRevenue = Math.max(...data.map(d => d.revenue), 100000)
+  
+  // Chart dimensions
+  const width = 500
+  const height = 180
+  const paddingLeft = 60
+  const paddingRight = 20
+  const paddingTop = 20
+  const paddingBottom = 30
+  
+  const chartWidth = width - paddingLeft - paddingRight
+  const chartHeight = height - paddingTop - paddingBottom
+  
+  // Calculate points
+  const points = data.map((d, index) => {
+    const x = paddingLeft + (index / (data.length - 1)) * chartWidth
+    const y = paddingTop + chartHeight - (d.revenue / maxRevenue) * chartHeight
+    return { x, y, ...d }
+  })
+  
+  // Create path for area and line
+  let linePath = ''
+  let areaPath = ''
+  
+  if (points.length > 0) {
+    linePath = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')
+    areaPath = `${linePath} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`
+  }
+  
+  return (
+    <div className="admin-chart-container" style={{
+      background: '#fff',
+      border: '1.5px solid #eee5d8',
+      borderRadius: '24px',
+      padding: '24px',
+      boxShadow: '0 16px 36px rgba(110, 83, 43, 0.04)',
+      marginBottom: '28px'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div>
+          <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c7e74' }}>THỐNG KÊ DOANH THU</span>
+          <h3 style={{ margin: '4px 0 0', fontSize: '18px', fontWeight: '800', color: '#1f1713' }}>Biểu đồ doanh thu 7 ngày qua</h3>
+        </div>
+        <div style={{ display: 'flex', gap: '16px', fontSize: '12px', fontWeight: '700' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: '#009b72' }} />
+            <span style={{ color: '#6f6257' }}>Doanh thu (VND)</span>
+          </div>
+        </div>
+      </div>
+      
+      <div style={{ position: 'relative', width: '100%', height: `${height}px` }}>
+        <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" style={{ overflow: 'visible' }}>
+          <defs>
+            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(0, 155, 114, 0.25)" />
+              <stop offset="100%" stopColor="rgba(0, 155, 114, 0.0)" />
+            </linearGradient>
+          </defs>
+          
+          {/* Y Grid Lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+            const y = paddingTop + ratio * chartHeight
+            const value = maxRevenue - ratio * maxRevenue
+            return (
+              <g key={i}>
+                <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#f0ece4" strokeWidth="1" strokeDasharray="4 4" />
+                <text x={paddingLeft - 10} y={y + 4} textAnchor="end" fill="#9c8a7c" fontSize="10" fontWeight="700">
+                  {value >= 1000000 ? `${(value / 1000000).toFixed(1)}M` : value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
+                </text>
+              </g>
+            )
+          })}
+          
+          {/* Area & Line */}
+          {points.length > 0 && (
+            <>
+              <path d={areaPath} fill="url(#chartGrad)" />
+              <path d={linePath} fill="none" stroke="#009b72" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            </>
+          )}
+          
+          {/* Points */}
+          {points.map((p, i) => (
+            <g key={i}>
+              <circle cx={p.x} cy={p.y} r="5" fill="#fff" stroke="#009b72" strokeWidth="3" />
+              <circle cx={p.x} cy={p.y} r="10" fill="transparent" style={{ cursor: 'pointer' }}>
+                <title>{`${p.dateStr}: ${formatPrice(p.revenue)} (${p.bookingsCount} đơn)`}</title>
+              </circle>
+              {p.revenue > 0 && (
+                <text x={p.x} y={p.y - 10} textAnchor="middle" fill="#007d5b" fontSize="9" fontWeight="800">
+                  {p.revenue >= 1000000 ? `${(p.revenue / 1000000).toFixed(1)}M` : `${(p.revenue / 1000).toFixed(0)}k`}
+                </text>
+              )}
+            </g>
+          ))}
+          
+          {/* X Grid Labels */}
+          {points.map((p, i) => (
+            <text key={i} x={p.x} y={height - 5} textAnchor="middle" fill="#9c8a7c" fontSize="10" fontWeight="700">
+              {p.dateStr}
+            </text>
+          ))}
+        </svg>
+      </div>
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tab: Dashboard (stats + recent bookings + partners)
 // ─────────────────────────────────────────────────────────────────────────────
 function DashboardTab({ stats, bookings, partners, users, onStatusUpdate }) {
+  const getBookingRevenue = (booking) => {
+    const payment = booking.payments?.[0]
+    if (!payment) return 0
+    if (payment.status === 'paid') {
+      return Number(booking.price) - Number(booking.price_discount)
+    }
+    if (payment.status === 'partially_paid') {
+      return Number(booking.price_deposit)
+    }
+    return 0
+  }
+
+  const getLast7Days = () => {
+    const list = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      list.push({
+        dateStr: d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
+        dateKey: d.toISOString().split('T')[0],
+        revenue: 0,
+        bookingsCount: 0
+      })
+    }
+    return list
+  }
+
+  const chartData = useMemo(() => {
+    const days = getLast7Days()
+    bookings.forEach((booking) => {
+      if (!booking.created_at) return
+      const bookingDateStr = booking.created_at.split('T')[0]
+      const matchedDay = days.find(day => day.dateKey === bookingDateStr)
+      if (matchedDay) {
+        matchedDay.revenue += getBookingRevenue(booking)
+        matchedDay.bookingsCount += 1
+      }
+    })
+    return days
+  }, [bookings])
+
   return (
     <>
       <div className="admin-stats-grid">
@@ -134,6 +285,8 @@ function DashboardTab({ stats, bookings, partners, users, onStatusUpdate }) {
         <article><span>Doanh thu thực</span><strong style={{ fontSize: 16 }}>{formatPrice(stats?.total_revenue)}</strong></article>
         <article><span>Doanh thu kỳ vọng</span><strong style={{ fontSize: 16 }}>{formatPrice(stats?.expected_revenue)}</strong></article>
       </div>
+
+      <RevenueChart data={chartData} />
 
       <div className="admin-grid">
         {/* Recent Bookings */}

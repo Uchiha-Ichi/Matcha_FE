@@ -165,20 +165,22 @@ function Header() {
           </svg>
         </a>
 
-        <a
-          className={`nav-icon-btn nav-avatar-btn ${
-            currentRoute === '/profile' ? 'nav-icon-btn-active' : ''
-          }`}
-          href={authUser ? '/profile' : '/login'}
-          aria-label="Tài khoản"
-          onClick={(event) => navigate(event, authUser ? '/profile' : '/login')}
-        >
-          <img
-            src={authUser?.avatar ?? 'https://i.pravatar.cc/100?u=matcha-guest'}
-            alt="Ảnh đại diện"
-            className="nav-avatar"
-          />
-        </a>
+        {authUser && (
+          <a
+            className={`nav-icon-btn nav-avatar-btn ${
+              currentRoute === '/profile' ? 'nav-icon-btn-active' : ''
+            }`}
+            href="/profile"
+            aria-label="Tài khoản"
+            onClick={(event) => navigate(event, '/profile')}
+          >
+            <img
+              src={authUser.avatar ?? `https://i.pravatar.cc/100?u=user-${authUser.id}`}
+              alt="Ảnh đại diện"
+              className="nav-avatar"
+            />
+          </a>
+        )}
 
         {!authUser && (
           <a

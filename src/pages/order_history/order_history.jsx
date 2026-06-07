@@ -190,11 +190,19 @@ function OrderHistory() {
     setValidatingPromo(true)
     setPromoError(null)
     try {
-      const updatedRawBooking = await applyBookingPromotion(payingUnpaidOrder.id, code)
-      const updatedBooking = normaliseBooking(updatedRawBooking, 0)
-      setPayingUnpaidOrder(updatedBooking)
+      await applyBookingPromotion(payingUnpaidOrder.id, code)
+      const data = await getBookings({ role: 'customer' })
+      const updated = Array.isArray(data) ? data : []
+      setRawOrders(updated)
+
+      // Sync lại payingUnpaidOrder từ data mới nhất
+      const freshRaw = updated.find(b => b.id === payingUnpaidOrder.id)
+      if (freshRaw) {
+        const idx = updated.indexOf(freshRaw)
+        setPayingUnpaidOrder(normaliseBooking(freshRaw, idx))
+      }
+
       setPromoCode('')
-      await refreshOrders()
     } catch (err) {
       setPromoError(err.message || 'Mã giảm giá không hợp lệ')
     } finally {
@@ -902,15 +910,19 @@ function OrderHistory() {
                   </div>
                 </>
               ) : (
-                <div className="sd-modal__promo-active" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="sd-modal__promo-active" style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: 'rgba(0, 155, 114, 0.04)',
+                  padding: '12px 16px',
+                  borderRadius: '16px',
+                  border: '1px solid rgba(0, 155, 114, 0.12)'
+                }}>
                   <div className="sd-promo-active-badge" style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    background: 'rgba(0, 155, 114, 0.08)',
-                    border: '1px solid rgba(0, 155, 114, 0.2)',
-                    padding: '6px 12px',
-                    borderRadius: '10px',
                     color: '#007d5b',
                     fontSize: '13px'
                   }}>
@@ -918,6 +930,23 @@ function OrderHistory() {
                     <strong>{payingUnpaidOrder.promotionCode}</strong>
                     <span style={{ color: '#009b72', marginLeft: '6px', fontWeight: 'bold' }}>(Đã áp dụng)</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPromoToBooking('')}
+                    disabled={validatingPromo}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#dc2626',
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    {validatingPromo ? 'Đang gỡ...' : 'Gỡ'}
+                  </button>
                 </div>
               )}
               {promoError && <p className="sd-promo-error-msg" style={{ margin: '8px 0 0', fontSize: '12px', color: '#c0392b', fontWeight: '700', display: 'block' }}>{promoError}</p>}
