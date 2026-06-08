@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getBookings, updateBookingStatus, getPromotions, applyBookingPromotion, createPaymentUrl, getPayment, closePaymentQr } from '../../utils/api.js'
+import { getBookings, updateBookingStatus, getPromotions, applyBookingPromotion, createPaymentUrl, getPayment, closePaymentQr, getFeedbacks, createFeedback } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
 import './order_history.css'
 
@@ -16,6 +16,8 @@ const statusMeta = {
 const paymentMeta = {
   paid: 'Đã thanh toán',
   partially_paid: 'Đã đặt cọc',
+  pending: 'Đang chờ thanh toán',
+  processing: 'Đang xử lý',
   unpaid: 'Chưa thanh toán',
 }
 
@@ -66,7 +68,24 @@ function normaliseBooking(booking, index) {
   const pc = detail?.partner_concept ?? {}
   const concept = pc.concept ?? {}
   const partner = booking.partner ?? {}
-  const payment = booking.payments?.find((p) => ['pending', 'processing', 'unpaid', 'partially_paid'].includes(p.status)) ?? booking.payments?.[0] ?? null
+  const payments = Array.isArray(booking.payments) ? booking.payments : []
+  const activePayment = payments.find((p) => ['pending', 'processing'].includes(p.status)) ?? null
+  const paidAmountFromPayments = payments
+    .filter((p) => ['paid', 'partially_paid'].includes(p.status))
+    .reduce((sum, p) => sum + Number(p.amount_paid ?? 0), 0)
+  const grossPrice = Number(booking.price ?? 0)
+  const discount = Number(booking.price_discount ?? 0)
+  const netPrice = Math.max(0, grossPrice - discount)
+  const paidAmount = booking.status === 'completed' && paidAmountFromPayments <= 0
+    ? netPrice
+    : Math.min(netPrice, paidAmountFromPayments)
+  const remainingAmount = Math.max(0, netPrice - paidAmount)
+  const paymentStatus = activePayment?.status
+    ?? (paidAmount >= netPrice && netPrice > 0 ? 'paid' : paidAmount > 0 ? 'partially_paid' : 'unpaid')
+  const payment = activePayment
+    ?? payments.find((p) => p.status === paymentStatus)
+    ?? payments[0]
+    ?? null
 
   // pick image: partner concept image → partner cover → fallback
   const image =
@@ -78,7 +97,7 @@ function normaliseBooking(booking, index) {
     id: booking.id,
     orderCode: `MTC-${String(booking.id).padStart(5, '0')}`,
     status: booking.status,
-    paymentStatus: payment?.status ?? 'unpaid',
+    paymentStatus,
     paymentId: payment?.id ?? null,
     paymentLinkId: payment?.payment_link_id ?? null,
     paymentOrderCode: payment?.order_code ?? null,
@@ -87,13 +106,22 @@ function normaliseBooking(booking, index) {
     partnerId: partner.id,
     location: partner.location_name ?? '—',
     bookingTime: booking.booking_time,
-    price: Number(booking.price ?? 0),
-    discount: Number(booking.price_discount ?? 0),
+    price: grossPrice,
+    discount,
+    netPrice,
     deposit: Number(booking.price_deposit ?? 0),
-    remaining: Number(booking.remaining_amount ?? 0),
+    paidAmount,
+    remaining: remainingAmount,
     promotionCode: booking.promotion?.code ?? null,
     image,
     resultLink: booking.result_link ?? null,
+    reviewTargets: (booking.details ?? []).map((item, detailIndex) => {
+      const itemConcept = item.partner_concept?.concept ?? {}
+      return {
+        id: item.id,
+        name: itemConcept.name ?? concept.name ?? `Dịch vụ ${detailIndex + 1}`,
+      }
+    }),
   }
 }
 
@@ -117,6 +145,7 @@ function OrderSkeletonRow() {
 
 function OrderHistory() {
   const authUser = getAuthUser()
+  const authUserId = authUser?.id
   const [rawOrders, setRawOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -131,6 +160,13 @@ function OrderHistory() {
   const [qrPayment, setQrPayment] = useState(null)
   const [paymentResult, setPaymentResult] = useState(null)
   const [paymentNow, setPaymentNow] = useState(Date.now())
+  const [reviewedDetailIds, setReviewedDetailIds] = useState(new Set())
+  const [feedbackModal, setFeedbackModal] = useState(null)
+  const [feedbackRating, setFeedbackRating] = useState(5)
+  const [feedbackDescription, setFeedbackDescription] = useState('')
+  const [feedbackImage, setFeedbackImage] = useState('')
+  const [submittingFeedback, setSubmittingFeedback] = useState(false)
+  const [feedbackError, setFeedbackError] = useState(null)
 
   // Promo code states for payingUnpaidOrder modal
   const [promoCode, setPromoCode] = useState('')
@@ -139,12 +175,67 @@ function OrderHistory() {
   const [promotions, setPromotions] = useState([])
   const [loadingPromos, setLoadingPromos] = useState(false)
 
-  const refreshOrders = async () => {
+  const loadUserFeedbacks = useCallback(async () => {
     try {
-      const data = await getBookings({ role: 'customer' })
+      const data = await getFeedbacks()
+      const ownFeedbacks = (Array.isArray(data) ? data : []).filter((fb) => fb.user?.id === authUserId)
+      setReviewedDetailIds(new Set(
+        ownFeedbacks
+          .map((fb) => fb.booking_detail?.id)
+          .filter(Boolean)
+      ))
+    } catch (err) {
+      console.error('Lỗi khi tải danh sách đánh giá:', err)
+    }
+  }, [authUserId])
+
+  const refreshOrders = useCallback(async () => {
+    try {
+      const [data] = await Promise.all([
+        getBookings({ role: 'customer' }),
+        loadUserFeedbacks(),
+      ])
       setRawOrders(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Lỗi khi tải lại danh sách đơn hàng:', err)
+    }
+  }, [loadUserFeedbacks])
+
+  const openFeedbackModal = (order) => {
+    const target = order.reviewTargets.find((item) => !reviewedDetailIds.has(item.id))
+    if (!target) return
+    setFeedbackModal({ order, target })
+    setFeedbackRating(5)
+    setFeedbackDescription('')
+    setFeedbackImage('')
+    setFeedbackError(null)
+  }
+
+  const handleSubmitFeedback = async (event) => {
+    event.preventDefault()
+    if (!feedbackModal?.target?.id || submittingFeedback) return
+
+    setSubmittingFeedback(true)
+    setFeedbackError(null)
+    try {
+      await createFeedback({
+        booking_detail_id: feedbackModal.target.id,
+        rating: feedbackRating,
+        description: feedbackDescription.trim() || undefined,
+        image: feedbackImage.trim() || undefined,
+      })
+      setReviewedDetailIds((current) => new Set([...current, feedbackModal.target.id]))
+      setFeedbackModal(null)
+      setPaymentAlert({
+        status: 'success',
+        title: 'Đã gửi đánh giá',
+        message: `Cảm ơn bạn đã đánh giá ${feedbackModal.target.name}.`,
+      })
+      await loadUserFeedbacks()
+    } catch (err) {
+      setFeedbackError(err.message || 'Không thể gửi đánh giá. Vui lòng thử lại.')
+    } finally {
+      setSubmittingFeedback(false)
     }
   }
 
@@ -174,7 +265,7 @@ function OrderHistory() {
     setProcessingPayment(true)
     setPaymentResult(null)
     try {
-      const payAmount = type === 'deposit' ? payingUnpaidOrder.deposit : (payingUnpaidOrder.price - payingUnpaidOrder.discount)
+      const payAmount = type === 'deposit' ? payingUnpaidOrder.deposit : payingUnpaidOrder.netPrice
       const paymentData = await createPaymentUrl(payingUnpaidOrder.id, type)
       setQrPayment({
         ...paymentData,
@@ -211,34 +302,6 @@ function OrderHistory() {
     }
   }
 
-  const handleCheckQrPayment = async () => {
-    if (!qrPayment?.payment?.id) return
-    try {
-      const payload = await getPayment(qrPayment.payment.id)
-      const payment = payload?.payment ?? payload
-      const status = payment?.status
-      if (status === 'paid' || status === 'partially_paid') {
-        setQrPayment(null)
-        setPaymentAlert({
-          status: 'success',
-          message: `Thanh toán thành công ${formatPrice(Number(payment.amount_paid ?? qrPayment.amount))} cho đơn hàng ${qrPayment.orderCodeLabel || qrPayment.bookingId}!`,
-        })
-        await refreshOrders()
-        return
-      }
-      setPaymentResult({
-        title: 'Chưa ghi nhận thanh toán',
-        message: 'Giao dịch vẫn đang chờ xác nhận. Nếu bạn đã chuyển khoản, vui lòng thử kiểm tra lại sau vài giây.',
-      })
-    } catch (err) {
-      setQrPayment(null)
-      setPaymentResult({
-        title: 'QR không còn hiệu lực',
-        message: err.message || 'Mã QR đã hết hạn hoặc đã bị hủy. Vui lòng tạo mã thanh toán mới.',
-      })
-      await refreshOrders()
-    }
-  }
   const handleConfirmCancel = async () => {
     if (!cancellingOrder) return
     setProcessingCancel(true)
@@ -364,7 +427,7 @@ function OrderHistory() {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [qrPayment])
+  }, [qrPayment, refreshOrders])
   const qrExpiresAt = getQrExpiresAt(qrPayment)
   const qrCountdown = formatCountdown(qrExpiresAt - paymentNow)
   const qrTransferContent = qrPayment?.payment?.raw_response?.data?.description
@@ -383,15 +446,26 @@ function OrderHistory() {
   }
 
   useEffect(() => {
-    if (!authUser) { setLoading(false); return }
+    if (!authUserId) { setLoading(false); return }
 
     let cancelled = false
     async function load() {
       try {
         setLoading(true)
         setError(null)
-        const data = await getBookings({ role: 'customer' })
-        if (!cancelled) setRawOrders(Array.isArray(data) ? data : [])
+        const [data, feedbacks] = await Promise.all([
+          getBookings({ role: 'customer' }),
+          getFeedbacks().catch(() => []),
+        ])
+        if (!cancelled) {
+          setRawOrders(Array.isArray(data) ? data : [])
+          const ownFeedbacks = (Array.isArray(feedbacks) ? feedbacks : []).filter((fb) => fb.user?.id === authUserId)
+          setReviewedDetailIds(new Set(
+            ownFeedbacks
+              .map((fb) => fb.booking_detail?.id)
+              .filter(Boolean)
+          ))
+        }
       } catch (err) {
         if (!cancelled) setError(err.message)
       } finally {
@@ -400,7 +474,7 @@ function OrderHistory() {
     }
     load()
     return () => { cancelled = true }
-  }, [])
+  }, [authUserId])
 
   const orders = useMemo(
     () => rawOrders.map((b, i) => normaliseBooking(b, i)),
@@ -499,6 +573,8 @@ function OrderHistory() {
             ) : (
               filteredOrders.map((order) => {
                 const statusInfo = statusMeta[order.status] ?? statusMeta.pending
+                const canReview = order.status === 'completed'
+                const reviewableCount = order.reviewTargets.filter((item) => !reviewedDetailIds.has(item.id)).length
                 return (
                   <article key={order.id} className="order-card">
                     <div className="order-card__img-wrapper">
@@ -526,7 +602,8 @@ function OrderHistory() {
                       <dl className="order-card__prices">
                         <div><dt>Tổng tiền</dt><dd>{formatPrice(order.price)}</dd></div>
                         <div><dt>Giảm giá</dt><dd>{formatPrice(order.discount)}</dd></div>
-                        <div><dt>Đã đặt cọc</dt><dd>{formatPrice(order.deposit)}</dd></div>
+                        <div><dt>Thành tiền</dt><dd>{formatPrice(order.netPrice)}</dd></div>
+                        <div><dt>Đã thanh toán</dt><dd>{formatPrice(order.paidAmount)}</dd></div>
                         <div><dt>Còn lại</dt><dd>{formatPrice(order.remaining)}</dd></div>
                       </dl>
 
@@ -617,7 +694,7 @@ function OrderHistory() {
                           </button>
                         )}
 
-                        {order.paymentStatus === 'partially_paid' && (
+                        {order.paymentStatus === 'partially_paid' && order.remaining > 0 && (
                           <button
                             type="button"
                             className="order-card__btn-pay"
@@ -638,6 +715,20 @@ function OrderHistory() {
                           >
                             Thanh toán nốt ({formatPrice(order.remaining)})
                           </button>
+                        )}
+
+                        {canReview && reviewableCount > 0 && (
+                          <button
+                            type="button"
+                            className="order-card__btn-feedback"
+                            onClick={() => openFeedbackModal(order)}
+                          >
+                            Đánh giá
+                          </button>
+                        )}
+
+                        {canReview && order.reviewTargets.length > 0 && reviewableCount === 0 && (
+                          <span className="order-card__feedback-done">Đã đánh giá</span>
                         )}
                       </div>
                     </div>
@@ -677,6 +768,74 @@ function OrderHistory() {
         </aside>
       </section>
 
+      {feedbackModal && (
+        <div className="order-feedback-modal" role="dialog" aria-modal="true" aria-labelledby="order-feedback-title">
+          <form className="order-feedback-panel" onSubmit={handleSubmitFeedback}>
+            <div className="order-feedback-panel__head">
+              <span>Feedback</span>
+              <h3 id="order-feedback-title">Đánh giá dịch vụ</h3>
+              <p>{feedbackModal.order.orderCode} · {feedbackModal.target.name}</p>
+            </div>
+
+            <div className="order-feedback-stars" role="radiogroup" aria-label="Chọn số sao">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  className={star <= feedbackRating ? 'order-feedback-star--active' : ''}
+                  aria-label={`${star} sao`}
+                  aria-pressed={star === feedbackRating}
+                  onClick={() => setFeedbackRating(star)}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <label className="order-feedback-field">
+              <span>Nội dung đánh giá</span>
+              <textarea
+                value={feedbackDescription}
+                onChange={(event) => setFeedbackDescription(event.target.value)}
+                rows={4}
+                maxLength={500}
+                placeholder="Chia sẻ trải nghiệm của bạn..."
+              />
+            </label>
+
+            <label className="order-feedback-field">
+              <span>Ảnh minh họa (URL, tùy chọn)</span>
+              <input
+                type="url"
+                value={feedbackImage}
+                onChange={(event) => setFeedbackImage(event.target.value)}
+                placeholder="https://..."
+              />
+            </label>
+
+            {feedbackError && <p className="order-feedback-error">{feedbackError}</p>}
+
+            <div className="order-feedback-actions">
+              <button
+                type="button"
+                className="order-feedback-cancel"
+                onClick={() => setFeedbackModal(null)}
+                disabled={submittingFeedback}
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                className="order-feedback-submit"
+                disabled={submittingFeedback}
+              >
+                {submittingFeedback ? 'Đang gửi...' : 'Gửi đánh giá'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {paymentAlert && (
         <div style={{
           position: 'fixed',
@@ -711,7 +870,7 @@ function OrderHistory() {
               marginBottom: '12px',
               color: '#1f1713'
             }}>
-              {paymentAlert.status === 'success' ? 'Thanh toán thành công' : 'Thanh toán thất bại'}
+              {paymentAlert.title ?? (paymentAlert.status === 'success' ? 'Thanh toán thành công' : 'Thanh toán thất bại')}
             </h3>
             <p style={{
               fontSize: '15px',
@@ -931,7 +1090,15 @@ function OrderHistory() {
               )}
               <div className="sd-price-row sd-price-row--total" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #e8decb', paddingTop: '10px', marginTop: '4px', color: '#161310', fontSize: '15px', fontWeight: '700' }}>
                 <span>Thành tiền:</span>
-                <strong style={{ fontSize: '18px', color: '#009b72' }}>{formatPrice(payingUnpaidOrder.price - payingUnpaidOrder.discount)}</strong>
+                <strong style={{ fontSize: '18px', color: '#009b72' }}>{formatPrice(payingUnpaidOrder.netPrice)}</strong>
+              </div>
+              <div className="sd-price-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#6c584c' }}>
+                <span>Đã thanh toán:</span>
+                <span>{formatPrice(payingUnpaidOrder.paidAmount)}</span>
+              </div>
+              <div className="sd-price-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#6c584c' }}>
+                <span>Còn lại:</span>
+                <span>{formatPrice(payingUnpaidOrder.remaining)}</span>
               </div>
             </div>
 
@@ -1154,7 +1321,7 @@ function OrderHistory() {
                   Thanh toán 100%
                 </strong>
                 <span style={{ fontSize: '18px', fontWeight: '800', color: '#08a86d' }}>
-                  {formatPrice(payingUnpaidOrder.price - payingUnpaidOrder.discount)}
+                  {formatPrice(payingUnpaidOrder.netPrice)}
                 </span>
                 <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#786658' }}>
                   Thanh toán toàn bộ ngay để xác nhận lịch nhanh nhất

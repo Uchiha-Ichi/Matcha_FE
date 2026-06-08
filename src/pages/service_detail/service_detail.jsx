@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getPartnerConcept, getPartner, getFeedbacks, addCartItem, clearCart, checkoutCart, validatePromoCode, getPromotions, createPaymentUrl, getPayment, closePaymentQr } from '../../utils/api.js'
+import { getPartnerConcept, getPartner, getFeedbacks, addCartItem, clearCart, checkoutCart, validatePromoCode, getPromotions, createPaymentUrl, getPayment, closePaymentQr, getPartnerCalendar } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
 import './service_detail.css'
 
@@ -13,6 +13,44 @@ const tabs = [
 
 const formatPrice = (value) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
+
+const parseDurationMinutes = (value) => {
+  if (!value) return 0
+  const text = String(value).toLowerCase().replace(',', '.')
+  const hourMatch = text.match(/(\d+(?:\.\d+)?)\s*(h|giờ|gio|hour)/)
+  const minuteMatch = text.match(/(\d+(?:\.\d+)?)\s*(m|phút|phut|min)/)
+
+  if (hourMatch) return Math.round(Number(hourMatch[1]) * 60)
+  if (minuteMatch) return Math.round(Number(minuteMatch[1]))
+
+  const numberOnly = Number(text.match(/\d+(?:\.\d+)?/)?.[0] ?? 0)
+  return numberOnly > 0 ? Math.round(numberOnly * 60) : 0
+}
+
+const addMinutesToTime = (time, minutes) => {
+  if (!time || !minutes) return ''
+  const [hours, mins] = time.split(':').map(Number)
+  if (Number.isNaN(hours) || Number.isNaN(mins)) return ''
+  const total = hours * 60 + mins + minutes
+  const endHours = String(Math.floor(total / 60) % 24).padStart(2, '0')
+  const endMins = String(total % 60).padStart(2, '0')
+  return `${endHours}:${endMins}`
+}
+
+const timeToMinutes = (time) => {
+  if (!time) return null
+  const [hours, mins] = String(time).split(':').map(Number)
+  if (Number.isNaN(hours) || Number.isNaN(mins)) return null
+  return hours * 60 + mins
+}
+
+const rangesOverlap = (startA, endA, startB, endB) =>
+  startA < endB && endA > startB
+
+const formatBlockTime = (block) => {
+  if (!block.start_time || !block.end_time) return 'Ca ngay'
+  return `${String(block.start_time).slice(0, 5)} - ${String(block.end_time).slice(0, 5)}`
+}
 
 const formatCountdown = (milliseconds) => {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000))
@@ -109,9 +147,37 @@ function ServiceDetail({ partnerConceptId }) {
   const [qrPayment, setQrPayment] = useState(null)
   const [paymentResult, setPaymentResult] = useState(null)
   const [paymentNow, setPaymentNow] = useState(Date.now())
+  const [partnerCalendar, setPartnerCalendar] = useState([])
   const authUser = getAuthUser()
 
   const price = Number(partnerConcept?.price ?? 0)
+  const durationMinutes = parseDurationMinutes(partnerConcept?.time)
+  const bookingEndTime = addMinutesToTime(bookingTime, durationMinutes)
+  const calendarPartnerId = partner?.id ?? partnerConcept?.partner?.id ?? partnerConcept?.partner_id
+  const blocksOnSelectedDate = useMemo(() => (
+    (partnerCalendar ?? []).filter((event) => event.type === 'blocked' && event.date === bookingDate)
+  ), [partnerCalendar, bookingDate])
+  const isWholeDayBlocked = blocksOnSelectedDate.some((block) => !block.start_time || !block.end_time)
+  const selectedStartMinutes = timeToMinutes(bookingTime)
+  const selectedEndMinutes = selectedStartMinutes !== null && durationMinutes > 0
+    ? selectedStartMinutes + durationMinutes
+    : selectedStartMinutes
+  const isSelectedTimeBlocked = Boolean(
+    bookingDate &&
+    bookingTime &&
+    (
+      isWholeDayBlocked ||
+      blocksOnSelectedDate.some((block) => {
+        const blockStart = timeToMinutes(block.start_time)
+        const blockEnd = timeToMinutes(block.end_time)
+        if (blockStart === null || blockEnd === null || selectedStartMinutes === null) return false
+        if (selectedEndMinutes === null || selectedEndMinutes === selectedStartMinutes) {
+          return selectedStartMinutes >= blockStart && selectedStartMinutes <= blockEnd
+        }
+        return rangesOverlap(selectedStartMinutes, selectedEndMinutes, blockStart, blockEnd)
+      })
+    )
+  )
 
   const [promoCode, setPromoCode] = useState('')
   const [appliedPromo, setAppliedPromo] = useState(null)
@@ -196,6 +262,24 @@ function ServiceDetail({ partnerConceptId }) {
     return () => { cancelled = true }
   }, [partnerConceptId])
 
+  useEffect(() => {
+    if (!calendarPartnerId) {
+      setPartnerCalendar([])
+      return
+    }
+
+    let cancelled = false
+    getPartnerCalendar(calendarPartnerId)
+      .then((events) => {
+        if (!cancelled) setPartnerCalendar(events ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setPartnerCalendar([])
+      })
+
+    return () => { cancelled = true }
+  }, [calendarPartnerId])
+
   const handleAddToCart = async () => {
     if (!authUser) {
       window.history.pushState({}, '', '/login')
@@ -208,13 +292,24 @@ function ServiceDetail({ partnerConceptId }) {
       return
     }
 
+    if (isSelectedTimeBlocked) {
+      alert('Khung gio nay trung voi lich nghi cua doi tac. Vui long chon gio khac!')
+      return
+    }
+
     setCartStatus('adding')
     try {
       await addCartItem(partnerConceptId, 1)
       // Lưu thông tin booking time vào localStorage theo partnerConceptId
       const bookingTimeIso = new Date(`${bookingDate}T${bookingTime}:00`).toISOString()
       const stored = JSON.parse(localStorage.getItem('matcha_booking_times') ?? '{}')
-      stored[partnerConceptId] = { date: bookingDate, time: bookingTime, iso: bookingTimeIso }
+      stored[partnerConceptId] = {
+        date: bookingDate,
+        time: bookingTime,
+        endTime: bookingEndTime,
+        durationMinutes,
+        iso: bookingTimeIso,
+      }
       localStorage.setItem('matcha_booking_times', JSON.stringify(stored))
 
       setCartStatus('success')
@@ -235,6 +330,11 @@ function ServiceDetail({ partnerConceptId }) {
 
     if (!bookingDate || !bookingTime) {
       alert('Vui lòng chọn đầy đủ ngày và giờ chụp ảnh!')
+      return
+    }
+
+    if (isSelectedTimeBlocked) {
+      alert('Khung gio nay trung voi lich nghi cua doi tac. Vui long chon gio khac!')
       return
     }
 
@@ -503,7 +603,7 @@ function ServiceDetail({ partnerConceptId }) {
     image: partnerConcept?.image_des || portfolioImages[0],
   }
 
-  const scheduleReady = bookingDate && bookingTime
+  const scheduleReady = bookingDate && bookingTime && !isSelectedTimeBlocked
 
   return (
     <main className="service-detail-page">
@@ -725,32 +825,67 @@ function ServiceDetail({ partnerConceptId }) {
               />
             </label>
 
-            <div style={{ display: 'grid', gap: '6px' }}>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#735f52' }}>Chọn khung giờ</span>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                {['08:00', '10:00', '14:00', '16:00'].map((slot) => (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() => setBookingTime(slot)}
-                    style={{
-                      minHeight: '38px',
-                      borderRadius: '10px',
-                      border: '1px solid',
-                      borderColor: bookingTime === slot ? '#1f1713' : '#e2d7c9',
-                      background: bookingTime === slot ? '#1f1713' : '#fcfaf6',
-                      color: bookingTime === slot ? '#fff' : '#6f6257',
-                      fontSize: '13px',
-                      fontWeight: '800',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    {slot}
-                  </button>
-                ))}
+            <label style={{ display: 'grid', gap: '6px' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#735f52' }}>Chọn giờ bắt đầu</span>
+              <input
+                type="time"
+                value={bookingTime}
+                min="06:00"
+                max="22:00"
+                step="900"
+                disabled={isWholeDayBlocked}
+                onChange={(e) => setBookingTime(e.target.value)}
+                style={{
+                  minHeight: '44px',
+                  borderRadius: '12px',
+                  border: '1px solid #e2d7c9',
+                  padding: '0 12px',
+                  background: isWholeDayBlocked ? '#f2ece6' : '#fcfaf6',
+                  fontFamily: 'inherit',
+                  fontWeight: '800',
+                  color: '#1f1713',
+                  cursor: isWholeDayBlocked ? 'not-allowed' : 'auto',
+                }}
+              />
+              {bookingTime && (
+                <small style={{ color: '#7b6b5d', fontWeight: '700', lineHeight: 1.5 }}>
+                  Kết thúc dự kiến: {bookingEndTime || 'chưa xác định'}
+                  {partnerConcept?.time ? ` (${partnerConcept.time})` : ''}
+                </small>
+              )}
+            </label>
+
+            {bookingDate && blocksOnSelectedDate.length > 0 && (
+              <div style={{
+                marginTop: '12px',
+                padding: '10px 12px',
+                background: '#fff6ed',
+                border: '1px solid #f0c9a2',
+                borderRadius: '10px',
+                color: '#8a4f16',
+                fontSize: '12px',
+                fontWeight: '700',
+                lineHeight: 1.5,
+              }}>
+                Partner nghi trong ngay nay: {blocksOnSelectedDate.map(formatBlockTime).join(', ')}
               </div>
-            </div>
+            )}
+
+            {isSelectedTimeBlocked && (
+              <div style={{
+                marginTop: '12px',
+                padding: '10px 12px',
+                background: '#fff0f0',
+                border: '1px solid #f3b2ad',
+                borderRadius: '10px',
+                color: '#a23930',
+                fontSize: '12px',
+                fontWeight: '800',
+                lineHeight: 1.5,
+              }}>
+                Khung gio {bookingTime}{bookingEndTime ? ` - ${bookingEndTime}` : ''} trung lich nghi. Vui long chon gio khac.
+              </div>
+            )}
 
             {scheduleReady && (
               <div style={{
@@ -768,7 +903,7 @@ function ServiceDetail({ partnerConceptId }) {
               }}>
                 <span>✓</span>
                 <span>
-                  {new Date(bookingDate).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })} · {bookingTime}
+                  {new Date(bookingDate).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })} · {bookingTime}{bookingEndTime ? ` - ${bookingEndTime}` : ''}
                 </span>
               </div>
             )}
@@ -779,7 +914,7 @@ function ServiceDetail({ partnerConceptId }) {
               <button
                 className={`service-sidebar__cart ${cartStatus === 'adding' ? 'service-sidebar__cart--loading' : ''}`}
                 type="button"
-                disabled={cartStatus === 'adding'}
+                disabled={cartStatus === 'adding' || isSelectedTimeBlocked}
                 onClick={handleAddToCart}
               >
                 <span aria-hidden="true">
@@ -806,7 +941,7 @@ function ServiceDetail({ partnerConceptId }) {
 
               <button
                 type="button"
-                disabled={bookingStatus === 'booking'}
+                disabled={bookingStatus === 'booking' || isSelectedTimeBlocked}
                 onClick={handleDirectBooking}
                 style={{
                   minHeight: '52px',

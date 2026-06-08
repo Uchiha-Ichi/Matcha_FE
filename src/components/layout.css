@@ -116,6 +116,10 @@
   position: relative;
 }
 
+.nav-chat-btn {
+  position: relative;
+}
+
 .nav-cart-badge {
   position: absolute;
   top: -3px;
@@ -132,6 +136,18 @@
   line-height: 1;
   font-weight: 800;
   border: 2px solid rgba(10, 18, 28, 0.32);
+}
+
+.nav-chat-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ff3b30;
+  border: 2px solid rgba(10, 18, 28, 0.78);
+  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.2);
 }
 
 .nav-avatar-btn {

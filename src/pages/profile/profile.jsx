@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getMe, updateMe, getBookings } from '../../utils/api.js'
+import { getMe, updateMe, getBookings, uploadImage } from '../../utils/api.js'
 import { getAuthUser, setAuthUser } from '../../utils/auth.js'
 import './profile.css'
 
@@ -79,6 +79,8 @@ function ProfileSkeleton() {
 
 function Profile() {
   const authUser = getAuthUser()
+  const authUserId = authUser?.id
+  const avatarInputRef = useRef(null)
   const [profile, setProfile] = useState({
     fullName: '',
     email: '',
@@ -102,9 +104,11 @@ function Profile() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [saveStatus, setSaveStatus] = useState(null) // 'saving' | 'success' | 'error' | null
+  const [avatarStatus, setAvatarStatus] = useState(null) // 'uploading' | 'success' | 'error' | null
+  const [avatarError, setAvatarError] = useState(null)
 
   useEffect(() => {
-    if (!authUser) {
+    if (!authUserId) {
       window.history.pushState({}, '', '/login')
       window.dispatchEvent(new PopStateEvent('popstate'))
       return
@@ -159,7 +163,7 @@ function Profile() {
         try {
           const stored = localStorage.getItem(extraKey)
           if (stored) extra = JSON.parse(stored)
-        } catch (e) {
+        } catch {
           // Ignore parse errors
         }
 
@@ -194,7 +198,7 @@ function Profile() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [authUserId])
 
   const updateProfileField = (field, value) => {
     setProfile((current) => ({
@@ -238,9 +242,53 @@ function Profile() {
 
       setSaveStatus('success')
       setTimeout(() => setSaveStatus(null), 3000)
-    } catch (err) {
+    } catch {
       setSaveStatus('error')
       setTimeout(() => setSaveStatus(null), 3000)
+    }
+  }
+
+  const handleAvatarFileChange = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarStatus('error')
+      setAvatarError('Vui lòng chọn file ảnh hợp lệ.')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarStatus('error')
+      setAvatarError('Ảnh tối đa 5MB.')
+      return
+    }
+
+    setAvatarStatus('uploading')
+    setAvatarError(null)
+    try {
+      const payload = await uploadImage(file)
+      const avatarUrl = payload?.url
+      if (!avatarUrl) throw new Error('Không nhận được URL ảnh sau khi upload.')
+
+      await updateMe({ avatar_src: avatarUrl })
+
+      setProfile((current) => ({
+        ...current,
+        avatar: avatarUrl,
+      }))
+
+      setAuthUser({
+        ...authUser,
+        avatar: avatarUrl,
+      })
+
+      setAvatarStatus('success')
+      setTimeout(() => setAvatarStatus(null), 2500)
+    } catch (err) {
+      setAvatarStatus('error')
+      setAvatarError(err.message || 'Không thể cập nhật ảnh đại diện.')
     }
   }
 
@@ -290,7 +338,30 @@ function Profile() {
       <section className="profile-layout">
         <aside className="profile-sidebar">
           <div className="profile-card">
-            <img src={profile.avatar} alt={profile.fullName} className="profile-card__avatar" />
+            <div className="profile-card__avatar-wrap">
+              <img src={profile.avatar} alt={profile.fullName} className="profile-card__avatar" />
+              <button
+                type="button"
+                className="profile-card__avatar-edit"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarStatus === 'uploading'}
+              >
+                {avatarStatus === 'uploading' ? 'Đang tải...' : 'Đổi ảnh'}
+              </button>
+              <input
+                ref={avatarInputRef}
+                className="profile-card__avatar-input"
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarFileChange}
+              />
+            </div>
+            {avatarStatus === 'success' && (
+              <span className="profile-card__avatar-note profile-card__avatar-note--success">Đã cập nhật ảnh</span>
+            )}
+            {avatarStatus === 'error' && (
+              <span className="profile-card__avatar-note profile-card__avatar-note--error">{avatarError}</span>
+            )}
             <h2>{profile.fullName || profile.email.split('@')[0]}</h2>
             <p>{profile.bio}</p>
             <span className="profile-card__role">{profile.role}</span>

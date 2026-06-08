@@ -89,6 +89,7 @@
 }
 
 .partner-admin-nav a {
+  position: relative;
   min-height: 40px;
   border-radius: 999px;
   display: inline-flex;
@@ -99,6 +100,18 @@
   white-space: nowrap;
   font-size: 14px;
   font-weight: 800;
+}
+
+.partner-admin-nav__dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #ff3b30;
+  border: 2px solid #fffdf9;
+  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.16);
 }
 
 .partner-admin-nav a:hover,
@@ -443,10 +456,22 @@
 }
 
 .partner-service-grid article {
-  padding: 16px;
+  overflow: hidden;
   border: 1px solid #eee5d8;
   border-radius: 20px;
   background: #fcfaf6;
+}
+
+.partner-service-grid article > img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  display: block;
+  object-fit: cover;
+  background: #eee5d8;
+}
+
+.partner-service-card__body {
+  padding: 16px;
 }
 
 .partner-service-grid span {
@@ -465,6 +490,7 @@
   margin: 14px 0 0;
   color: #171411;
   font-size: 18px;
+  line-height: 1.35;
 }
 
 .partner-service-grid p {

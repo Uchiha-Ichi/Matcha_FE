@@ -160,10 +160,17 @@ function Chat() {
       console.log('[Chat] Received new_message payload:', message)
       if (!message) return
       const currentActiveId = activeConversationIdRef.current
+      const isIncoming = message.user?.id !== authUserId
       if (message.conversation_id === currentActiveId) {
         setMessages(prev => [...prev, message])
         // Tự động mark read
-        socket.emit('mark_read', { conversation_id: currentActiveId })
+        if (isIncoming) {
+          socket.emit('mark_read', { conversation_id: currentActiveId })
+          window.dispatchEvent(new CustomEvent('matcha-chat-unread-change'))
+        }
+      }
+      if (message.conversation_id !== currentActiveId && isIncoming) {
+        window.dispatchEvent(new CustomEvent('matcha-chat-unread-change'))
       }
 
       // Cập nhật last message trong danh sách conversations
@@ -173,12 +180,34 @@ function Chat() {
             return {
               ...c,
               last_message: message.content,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
+              unread_count: isIncoming && message.conversation_id !== currentActiveId
+                ? Number(c.unread_count ?? 0) + 1
+                : Number(c.unread_count ?? 0),
             }
           }
           return c
         }).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
       })
+    })
+
+    socket.on('messages_read', (payload) => {
+      if (!payload?.conversation_id) return
+
+      setMessages(prev => prev.map((message) => {
+        if (message.conversation_id !== payload.conversation_id || message.user?.id === payload.user_id) {
+          return message
+        }
+        return { ...message, is_read: true }
+      }))
+
+      setConversations(prev => prev.map((conversation) => (
+        conversation.id === payload.conversation_id && payload.user_id === authUserId
+          ? { ...conversation, unread_count: 0 }
+          : conversation
+      )))
+
+      window.dispatchEvent(new CustomEvent('matcha-chat-unread-change'))
     })
 
     return () => {
@@ -204,6 +233,10 @@ function Chat() {
     socket.emit('get_messages', { conversation_id: activeConversationId, page: 1 })
     // Đánh dấu đã đọc
     socket.emit('mark_read', { conversation_id: activeConversationId })
+    setConversations(prev => prev.map((conversation) => (
+      conversation.id === activeConversationId ? { ...conversation, unread_count: 0 } : conversation
+    )))
+    window.dispatchEvent(new CustomEvent('matcha-chat-unread-change'))
 
     return () => {
       // Rời room cũ
@@ -309,6 +342,7 @@ function Chat() {
             ) : (
               conversations.map((conversation) => {
                 const partner = getPartnerDisplay(conversation)
+                const unreadCount = Number(conversation.unread_count ?? 0)
                 return (
                   <button
                     key={conversation.id}
@@ -335,6 +369,7 @@ function Chat() {
                         ? new Date(conversation.updated_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
                         : ''}
                     </span>
+                    {unreadCount > 0 && <em>{unreadCount > 9 ? '9+' : unreadCount}</em>}
                   </button>
                 )
               })
@@ -397,6 +432,7 @@ function Chat() {
                 <>
                   {messages.map((message) => {
                     const isMe = message.user?.id === authUser.id
+                    const messageTime = new Date(message.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
                     return (
                       <article
                         key={message.id}
@@ -404,7 +440,12 @@ function Chat() {
                       >
                         <p>{message.content}</p>
                         <span>
-                          {new Date(message.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          {messageTime}
+                          {isMe && (
+                            <strong className="chat-read-state">
+                              {message.is_read ? 'Đã đọc' : 'Chưa đọc'}
+                            </strong>
+                          )}
                         </span>
                       </article>
                     )
