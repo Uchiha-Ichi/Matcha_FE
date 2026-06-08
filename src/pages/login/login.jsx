@@ -70,7 +70,7 @@ function Login({ closeHref = '/' }) {
         }
 
         // 1. Sign up
-        await signUp(fullName, email, password, phone, isPartner ? 2 : 1)
+        await signUp(fullName, email, password, phone, isPartner ? 2 : 3)
 
         // 2. Cập nhật thông tin profile bổ sung (fullName, phone)
         const updateDto = {

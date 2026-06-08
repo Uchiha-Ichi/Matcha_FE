@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getPartnerConcept, getPartner, getFeedbacks, addCartItem, clearCart, checkoutCart, mockConfirmPayment, validatePromoCode, getPromotions } from '../../utils/api.js'
+import { getPartnerConcept, getPartner, getFeedbacks, addCartItem, clearCart, checkoutCart, validatePromoCode, getPromotions, createPaymentUrl, getPayment, closePaymentQr } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
 import './service_detail.css'
 
@@ -13,6 +13,19 @@ const tabs = [
 
 const formatPrice = (value) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
+
+const formatCountdown = (milliseconds) => {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000))
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0')
+  const seconds = String(totalSeconds % 60).padStart(2, '0')
+  return `${minutes}:${seconds}`
+}
+const getQrExpiresAt = (qrPayment) => {
+  if (!qrPayment) return Date.now()
+  return qrPayment.payment?.expired_at
+    ? new Date(qrPayment.payment.expired_at).getTime()
+    : new Date(qrPayment.payment?.created_at ?? Date.now()).getTime() + 5 * 60 * 1000
+}
 
 const imageFallbacks = [
   'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=900&q=80',
@@ -93,6 +106,9 @@ function ServiceDetail({ partnerConceptId }) {
   const [showSuccessScreen, setShowSuccessScreen] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(null) // null | { type, amount }
   const [pendingBooking, setPendingBooking] = useState(null) // booking data after checkout
+  const [qrPayment, setQrPayment] = useState(null)
+  const [paymentResult, setPaymentResult] = useState(null)
+  const [paymentNow, setPaymentNow] = useState(Date.now())
   const authUser = getAuthUser()
 
   const price = Number(partnerConcept?.price ?? 0)
@@ -267,17 +283,13 @@ function ServiceDetail({ partnerConceptId }) {
   }
 
   const handleConfirmPayment = async (type) => {
-    // type: 'deposit' | 'full'
     setShowPaymentModal(false)
-    setBookingStatus('booking') // Show spinner overlay
+    setBookingStatus('booking')
+    setPaymentResult(null)
     try {
-      // 1. Dọn giỏ hàng để tránh checkout nhầm các gói khác
       await clearCart()
-
-      // 2. Thêm gói dịch vụ hiện tại vào giỏ hàng
       await addCartItem(partnerConceptId, 1)
 
-      // 3. Thực hiện checkout
       const bookingTimeIso = new Date(`${bookingDate}T${bookingTime}:00`).toISOString()
       const bookings = await checkoutCart({ 
         booking_time: bookingTimeIso,
@@ -289,13 +301,17 @@ function ServiceDetail({ partnerConceptId }) {
       }
 
       const createdBooking = bookings[0]
+      setPendingBooking(createdBooking)
       window.dispatchEvent(new CustomEvent('matcha-cart-change'))
 
-      // 4. Gọi API để cập nhật payment status trong DB
-      await mockConfirmPayment(createdBooking.id, type)
-
-      setPaymentSuccess({ type, amount: type === 'deposit' ? deposit : netTotal, total: netTotal })
-      setShowSuccessScreen(true)
+      const amount = type === 'deposit' ? deposit : netTotal
+      const paymentData = await createPaymentUrl(createdBooking.id, type)
+      setQrPayment({
+        ...paymentData,
+        type,
+        bookingId: createdBooking.id,
+        amount: paymentData.amount ?? amount,
+      })
     } catch (err) {
       alert('Đặt lịch thất bại: ' + err.message)
     } finally {
@@ -304,6 +320,96 @@ function ServiceDetail({ partnerConceptId }) {
     }
   }
 
+  const handleCloseQr = async () => {
+    if (!qrPayment) return
+    try {
+      await closePaymentQr({
+        paymentId: qrPayment.payment?.id,
+        paymentLinkId: qrPayment.paymentLinkId,
+        orderCode: qrPayment.orderCode,
+      })
+    } catch (err) {
+      console.error('Không thể đóng QR thanh toán:', err)
+    } finally {
+      setQrPayment(null)
+      setPaymentResult({
+        title: 'Đã đóng QR thanh toán',
+        message: 'Mã QR đã được hủy. Bạn có thể tạo mã mới khi muốn thanh toán lại.',
+      })
+    }
+  }
+
+  const handleCheckQrPayment = async () => {
+    if (!qrPayment?.payment?.id) return
+    try {
+      const payload = await getPayment(qrPayment.payment.id)
+      const payment = payload?.payment ?? payload
+      const status = payment?.status
+      if (status === 'paid' || status === 'partially_paid') {
+        setPaymentSuccess({ type: qrPayment.type, amount: Number(payment.amount_paid ?? qrPayment.amount), total: netTotal })
+        setQrPayment(null)
+        setShowSuccessScreen(true)
+        return
+      }
+      setPaymentResult({
+        title: 'Chưa ghi nhận thanh toán',
+        message: 'Giao dịch vẫn đang chờ xác nhận. Nếu bạn đã chuyển khoản, vui lòng thử kiểm tra lại sau vài giây.',
+      })
+    } catch (err) {
+      setQrPayment(null)
+      setPaymentResult({
+        title: 'QR không còn hiệu lực',
+        message: err.message || 'Mã QR đã hết hạn hoặc đã bị hủy. Vui lòng tạo mã thanh toán mới.',
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (!qrPayment) return undefined
+    setPaymentNow(Date.now())
+    const timer = window.setInterval(() => setPaymentNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [qrPayment])
+
+
+  useEffect(() => {
+    if (!qrPayment?.payment?.id) return undefined
+
+    let cancelled = false
+    const pollQrPaymentStatus = async () => {
+      try {
+        const payload = await getPayment(qrPayment.payment.id)
+        const payment = payload?.payment ?? payload
+        const status = payment?.status
+        if (cancelled || (status !== 'paid' && status !== 'partially_paid')) return
+
+        setPaymentSuccess({ type: qrPayment.type, amount: Number(payment.amount_paid ?? qrPayment.amount), total: netTotal })
+        setQrPayment(null)
+        setShowSuccessScreen(true)
+      } catch (err) {
+        if (!cancelled && Date.now() >= getQrExpiresAt(qrPayment)) {
+          setQrPayment(null)
+          setPaymentResult({
+            title: 'QR không còn hiệu lực',
+            message: err.message || 'Mã QR đã hết hạn hoặc đã bị hủy. Vui lòng tạo mã thanh toán mới.',
+          })
+        }
+      }
+    }
+
+    pollQrPaymentStatus()
+    const timer = window.setInterval(pollQrPaymentStatus, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [qrPayment, netTotal])
+  const qrExpiresAt = getQrExpiresAt(qrPayment)
+  const qrCountdown = formatCountdown(qrExpiresAt - paymentNow)
+  const qrTransferContent = qrPayment?.payment?.raw_response?.data?.description
+    ?? qrPayment?.payment?.description
+    ?? qrPayment?.description
+    ?? `Matcha booking ${qrPayment?.bookingId ?? ''}`
   const handleChatWithPartner = (event) => {
     event.preventDefault()
     if (!authUser) {
@@ -995,6 +1101,49 @@ function ServiceDetail({ partnerConceptId }) {
       )}
 
       {/* ── Success Screen ───────────────────────────────────────────── */}
+
+      {qrPayment && (
+        <div className="sd-modal-overlay" onClick={handleCloseQr}>
+          <div className="sd-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sd-modal__header">
+              <h2>Quét QR để thanh toán</h2>
+              <button className="sd-modal__close" type="button" onClick={handleCloseQr} aria-label="Đóng">×</button>
+            </div>
+            <div style={{ display: 'grid', gap: 16, justifyItems: 'center', textAlign: 'center' }}>
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(qrPayment.qrCode)}`}
+                alt="QR thanh toán payOS"
+                style={{ width: 260, height: 260, maxWidth: '100%', border: '1px solid #eadfce', borderRadius: 16, padding: 10, background: '#fff' }}
+              />
+              <div style={{ display: 'grid', gap: 4 }}>
+                <span style={{ color: '#7b6b5d', fontSize: 13 }}>Số tiền cần thanh toán</span>
+                <strong style={{ color: '#0f1412', fontSize: 24 }}>{formatPrice(Number(qrPayment.amount ?? 0))}</strong>
+              </div>
+              <div style={{ padding: '10px 14px', borderRadius: 14, background: '#f7f1ea', display: 'grid', gap: 2 }}>
+                <span style={{ color: '#7b6b5d', fontSize: 12, fontWeight: 700 }}>Thời gian còn lại</span>
+                <strong style={{ color: '#b24b2a', fontSize: 22 }}>{qrCountdown}</strong>
+              </div>
+              <div style={{ width: '100%', display: 'grid', gap: 10, textAlign: 'left', background: '#fbf9f6', border: '1px solid #eadfce', borderRadius: 16, padding: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><span style={{ color: '#7b6b5d' }}>Ngân hàng</span><strong>BIDV</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><span style={{ color: '#7b6b5d' }}>Thụ hưởng</span><strong>Hoàng Huy Nhật</strong></div>
+                <div style={{ display: 'grid', gap: 4 }}><span style={{ color: '#7b6b5d' }}>Nội dung giao dịch</span><strong style={{ wordBreak: 'break-word' }}>{qrTransferContent}</strong></div>
+              </div>              <div style={{ display: 'flex', gap: 12, width: '100%' }}>
+                <button type="button" onClick={handleCloseQr} style={{ flex: 1, border: 0, borderRadius: 999, padding: '12px 16px', background: '#1f1713', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Đóng QR</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {paymentResult && !showSuccessScreen && (
+        <div className="sd-modal-overlay" onClick={() => setPaymentResult(null)}>
+          <div className="sd-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420, textAlign: 'center' }}>
+            <h2>{paymentResult.title}</h2>
+            <p style={{ color: '#6f6257', lineHeight: 1.6 }}>{paymentResult.message}</p>
+            <button type="button" onClick={() => setPaymentResult(null)} style={{ width: '100%', border: 0, borderRadius: 999, padding: '12px 20px', background: '#1f1713', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Đóng</button>
+          </div>
+        </div>
+      )}
       {showSuccessScreen && paymentSuccess && (
         <div className="sd-success-overlay">
           <div className="sd-success-card">
