@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getMe, updateMe, getBookings } from '../../utils/api.js'
+import { getMe, getMyPartner, updateMe, getBookings } from '../../utils/api.js'
+import { PartnerDashboardHeader } from '../partner_dashboard/partner_dashboard.jsx'
 import { getAuthUser, setAuthUser } from '../../utils/auth.js'
 import './profile.css'
 
@@ -16,10 +17,16 @@ const navigate = (event, path) => {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
+function ProfileHeader({ isPartner, partner }) {
+  return isPartner ? <PartnerDashboardHeader partner={partner} activePath="/profile" /> : <Header />
+}
+
 function ProfileSkeleton() {
+  const authUser = getAuthUser()
+  const isPartner = authUser?.role === 'Partner'
   return (
     <main className="profile-page">
-      <Header />
+      <ProfileHeader isPartner={isPartner} partner={null} />
       <section className="profile-hero">
         <div className="profile-skeleton-bg" style={{ position: 'absolute', inset: 0 }} />
         <div className="profile-hero__overlay" />
@@ -102,6 +109,7 @@ function Profile() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [saveStatus, setSaveStatus] = useState(null) // 'saving' | 'success' | 'error' | null
+  const [partnerProfile, setPartnerProfile] = useState(null)
 
   useEffect(() => {
     if (!authUser) {
@@ -120,8 +128,11 @@ function Profile() {
           getMe(),
           getBookings({ role: 'customer' }).catch(() => []),
         ])
+        const myPartner = me.role?.name === 'Partner' ? await getMyPartner().catch(() => null) : null
 
         if (cancelled) return
+
+        setPartnerProfile(myPartner)
 
         // Calculate stats
         const totalBookings = bookingsList.length
@@ -246,10 +257,12 @@ function Profile() {
 
   if (loading) return <ProfileSkeleton />
 
+  const isPartnerProfile = profile.role === 'Partner' || authUser?.role === 'Partner'
+
   if (error) {
     return (
       <main className="profile-page">
-        <Header />
+        <ProfileHeader isPartner={isPartnerProfile} partner={partnerProfile} />
         <div style={{ maxWidth: 600, margin: '120px auto', textAlign: 'center', padding: 24 }}>
           <h2 style={{ fontSize: 24, marginBottom: 12 }}>Không thể tải hồ sơ cá nhân</h2>
           <p style={{ color: '#6f6257', marginBottom: 24 }}>{error}</p>
@@ -275,7 +288,7 @@ function Profile() {
 
   return (
     <main className="profile-page">
-      <Header />
+      <ProfileHeader isPartner={isPartnerProfile} partner={partnerProfile} />
 
       <section className="profile-hero">
         <img src={profile.cover} alt="Matcha profile cover" />

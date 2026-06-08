@@ -114,11 +114,14 @@ export const signIn = (email, password) =>
     body: JSON.stringify({ email, password }),
   })
 
-export const signUp = (full_name, email, password, phone, role_id) =>
-  apiFetch('/auth/signup', {
+export const signUp = (full_name, email, password, phone, role_id) => {
+  const payload = { full_name, email, password, role_id }
+  if (phone) payload.phone = phone
+  return apiFetch('/auth/signup', {
     method: 'POST',
-    body: JSON.stringify({ full_name, email, password, phone, role_id }),
+    body: JSON.stringify(payload),
   })
+}
 
 export const signOut = () =>
   apiFetch('/auth/logout', {

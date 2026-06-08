@@ -1,7 +1,6 @@
-import Header from '../../components/Header.jsx'
+﻿import Header from '../../components/Header.jsx'
 import Footer from '../../components/Footer.jsx'
 import './about_matcha.css'
-
 
 function AboutMatcha() {
   return (
@@ -20,16 +19,13 @@ function AboutMatcha() {
             <h1 className="about-kicker">Xin chào,</h1>
             <h1>Đây là Matcha.</h1>
             <p>
-              Chúng tôi tạo ra một không gian nơi mọi ý tưởng chụp ảnh đều có thể
-              được kết nối với đúng ekip thực hiện, đúng phong cách và đúng năng
-              lượng mà bạn đang tìm kiếm.
+              Chúng tôi tạo ra một không gian nơi mọi ý tưởng chụp ảnh đều có thể được kết nối
+              với đúng ekip thực hiện, đúng phong cách và đúng năng lượng mà bạn đang tìm kiếm.
             </p>
             <p>
-              Từ ảnh cá nhân, gia đình, cặp đôi đến sự kiện, Matcha mong muốn
-              biến từng khoảnh khắc thành một trải nghiệm được chuẩn bị chỉn chu
-              và giàu cảm xúc.
+              Từ ảnh cá nhân, gia đình, cặp đôi đến sự kiện, Matcha mong muốn biến từng khoảnh
+              khắc thành một trải nghiệm được chuẩn bị chỉn chu và giàu cảm xúc.
             </p>
-           
           </div>
         </div>
 
@@ -44,19 +40,17 @@ function AboutMatcha() {
         <div className="story-grid">
           <article className="story-copy">
             <p>
-              Matcha bắt đầu như một nỗ lực nhỏ nhằm làm cho việc đặt lịch chụp
-              trở nên đơn giản hơn. Không chỉ là tìm một nhiếp ảnh gia, mà là tìm
-              được người thật sự hiểu câu chuyện bạn muốn kể.
+              Matcha bắt đầu như một nỗ lực nhỏ nhằm làm cho việc đặt lịch chụp trở nên đơn giản
+              hơn. Không chỉ là tìm một nhiếp ảnh gia, mà là tìm được người thật sự hiểu câu
+              chuyện bạn muốn kể.
             </p>
             <p>
-              Chúng tôi tin rằng một buổi chụp đẹp không chỉ đến từ máy ảnh tốt,
-              mà còn đến từ cách ekip làm bạn thấy thoải mái, tự tin và được là
-              chính mình trong từng khung hình.
+              Chúng tôi tin rằng một buổi chụp đẹp không chỉ đến từ máy ảnh tốt, mà còn đến từ
+              cách ekip làm bạn thấy thoải mái, tự tin và được là chính mình trong từng khung hình.
             </p>
             <p>
-              Vì vậy Matcha tập trung xây dựng một trải nghiệm mượt mà: chọn
-              concept, ghép ekip, xem dịch vụ, đặt lịch và nhận tư vấn nhanh trong
-              cùng một nơi.
+              Vì vậy Matcha tập trung xây dựng một trải nghiệm mượt mà: chọn concept, ghép ekip,
+              xem dịch vụ, đặt lịch và nhận tư vấn nhanh trong cùng một nơi.
             </p>
           </article>
 
@@ -66,7 +60,6 @@ function AboutMatcha() {
         </div>
       </section>
 
-  
       <Footer />
     </main>
   )

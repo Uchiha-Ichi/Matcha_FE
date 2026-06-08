@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { clearAuthUser, getAuthUser, subscribeAuthChange } from '../utils/auth.js'
 import { getCart, signOut } from '../utils/api.js'
 import './layout.css'
@@ -108,7 +108,11 @@ function Header() {
         >
           Lịch sử đơn hàng
         </a>
-        <a href="/" onClick={(event) => navigate(event, '/')}>
+        <a
+          href="https://www.facebook.com/profile.php?id=61590803961448#"
+          target="_blank"
+          rel="noreferrer"
+        >
           Blogs
         </a>
       </nav>

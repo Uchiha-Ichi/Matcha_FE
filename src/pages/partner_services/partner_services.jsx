@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { getAuthUser } from '../../utils/auth.js'
 import {
+  createConcept,
   getConcepts,
   getMyPartner,
   getPartnerConcepts,
@@ -29,6 +30,10 @@ const defaultDraft = {
   time: '',
   image_des: '',
   files: [],
+  createNewConcept: false,
+  newConceptName: '',
+  newConceptDescription: '',
+  newConceptImage: '',
 }
 
 function PartnerServices() {
@@ -42,7 +47,6 @@ function PartnerServices() {
   const [saving, setSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [editDraft, setEditDraft] = useState({})
-  const [fileInputRef] = useState(() => ({ current: null }))
   const [successMsg, setSuccessMsg] = useState('')
 
   useEffect(() => {
@@ -86,31 +90,46 @@ function PartnerServices() {
 
   const handleCreate = async (event) => {
     event.preventDefault()
-    if (!draft.concept_id || !draft.price) {
-      alert('Vui lòng chọn concept và nhập giá')
+    if ((!draft.createNewConcept && !draft.concept_id) || !draft.price) {
+      alert('Vui lòng chọn concept hoặc tạo concept mới, rồi nhập giá')
+      return
+    }
+    if (draft.createNewConcept && !draft.newConceptName.trim()) {
+      alert('Vui lòng nhập tên concept mới')
       return
     }
     if (!partner) {
       alert('Không tìm thấy thông tin partner')
       return
     }
+
     setSaving(true)
     try {
+      let conceptId = draft.concept_id
+      if (draft.createNewConcept) {
+        const newConcept = await createConcept({
+          name: draft.newConceptName.trim(),
+          description: draft.newConceptDescription.trim() || undefined,
+          image: draft.newConceptImage.trim() || draft.image_des.trim() || undefined,
+        })
+        conceptId = newConcept.id
+        setConcepts((prev) => [...prev, newConcept])
+      }
+
       const formData = new FormData()
       formData.append('price', String(Number(draft.price)))
       formData.append('time', draft.time)
-      formData.append('concept_id', String(draft.concept_id))
+      formData.append('concept_id', String(conceptId))
       formData.append('partner_id', String(partner.id))
       if (draft.files && draft.files.length > 0) {
         draft.files.forEach((file) => {
           formData.append('files', file)
         })
-      } else if (draft.image_des) {
-        formData.append('image_des', draft.image_des)
+      } else if (draft.image_des || (draft.createNewConcept && draft.newConceptImage)) {
+        formData.append('image_des', draft.image_des || draft.newConceptImage)
       }
 
-      const created = await createPartnerConcept(formData)
-      // Reload services to get full relations
+      await createPartnerConcept(formData)
       const fresh = await getPartnerConcepts()
       const myConcepts = (fresh || []).filter(
         (c) => c.partner?.id === partner.id || c.partner_id === partner.id,
@@ -298,9 +317,10 @@ function PartnerServices() {
               <select
                 value={draft.concept_id}
                 onChange={(event) => updateDraft('concept_id', event.target.value)}
-                required
+                required={!draft.createNewConcept}
+                disabled={draft.createNewConcept}
               >
-                <option value="">— Chọn concept —</option>
+                <option value="">- Chọn concept -</option>
                 {concepts.map((concept) => (
                   <option key={concept.id} value={concept.id}>
                     {concept.name}
@@ -308,6 +328,47 @@ function PartnerServices() {
                 ))}
               </select>
             </label>
+
+            <div className="partner-concept-create-box">
+              <label className="partner-concept-create-toggle">
+                <input
+                  type="checkbox"
+                  checked={draft.createNewConcept}
+                  onChange={(event) => updateDraft('createNewConcept', event.target.checked)}
+                />
+                <span>Tạo concept mới</span>
+              </label>
+
+              {draft.createNewConcept && (
+                <div className="partner-concept-create-fields">
+                  <label>
+                    <span>Tên concept mới</span>
+                    <input
+                      value={draft.newConceptName}
+                      onChange={(event) => updateDraft('newConceptName', event.target.value)}
+                      placeholder="VD: Concept nàng thơ biển"
+                      required={draft.createNewConcept}
+                    />
+                  </label>
+                  <label>
+                    <span>Mô tả concept</span>
+                    <textarea
+                      value={draft.newConceptDescription}
+                      onChange={(event) => updateDraft('newConceptDescription', event.target.value)}
+                      placeholder="Mô tả ngắn về concept này"
+                    />
+                  </label>
+                  <label>
+                    <span>Ảnh đại diện concept</span>
+                    <input
+                      value={draft.newConceptImage}
+                      onChange={(event) => updateDraft('newConceptImage', event.target.value)}
+                      placeholder="https://... hoặc để trống"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
 
             <label>
               <span>Giá</span>
@@ -327,7 +388,7 @@ function PartnerServices() {
                 onChange={(event) => updateDraft('time', event.target.value)}
                 required
               >
-                <option value="">— Chọn thời lượng —</option>
+                <option value="">- Chọn thời lượng -</option>
                 <option value="1h">1 giờ</option>
                 <option value="1.5h">1.5 giờ</option>
                 <option value="2h">2 giờ</option>
@@ -358,7 +419,7 @@ function PartnerServices() {
               {saving ? (
                 <>
                   <span className="spinner-loader"></span>
-                  Đang lưu…
+                  Đang lưu...
                 </>
               ) : (
                 'Lưu dịch vụ'

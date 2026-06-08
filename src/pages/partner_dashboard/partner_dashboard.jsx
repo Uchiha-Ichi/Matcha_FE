@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { clearAuthUser, getAuthUser } from '../../utils/auth.js'
 import { getBookings, getMyPartner, getPartnerConcepts, updateBookingStatus } from '../../utils/api.js'
 import LoadingScreen from '../../components/LoadingScreen.jsx'
@@ -21,7 +21,7 @@ const formatPrice = (value) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value ?? 0)
 
 const formatDateTime = (value) => {
-  if (!value) return '—'
+  if (!value) return '-'
   try {
     return new Intl.DateTimeFormat('vi-VN', {
       day: '2-digit',
@@ -72,7 +72,7 @@ export function PartnerDashboardHeader({ partner, activePath = '/partner-dashboa
         </span>
         <div>
           <strong>MATCHA PARTNER</strong>
-          <em>{partner?.band_name ?? '…'}</em>
+          <em>{partner?.band_name ?? '...'}</em>
         </div>
       </a>
 
@@ -275,7 +275,6 @@ function PartnerDashboard() {
                 const conceptName =
                   booking.details?.[0]?.partner_concept?.concept?.name ?? 'Dịch vụ'
 
-                // Next valid status transitions
                 const nextStatus =
                   booking.status === 'pending'
                     ? 'confirmed'
@@ -317,7 +316,7 @@ function PartnerDashboard() {
                             onClick={() => handleUpdateStatus(booking.id, nextStatus)}
                           >
                             {updatingId === booking.id
-                              ? 'Đang cập nhật…'
+                              ? 'Đang cập nhật...'
                               : nextStatus === 'confirmed'
                                 ? 'Xác nhận'
                                 : 'Hoàn thành'}
@@ -350,7 +349,6 @@ function PartnerDashboard() {
                 <article key={service.id}>
                   <span>{service.time}</span>
                   <h3>{service.concept?.name ?? 'Concept'}</h3>
-                  <p>{service.image_des}</p>
                   <strong>{formatPrice(service.price)}</strong>
                 </article>
               ))}
