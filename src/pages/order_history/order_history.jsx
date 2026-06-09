@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getBookings, updateBookingStatus, getPromotions, applyBookingPromotion, createPaymentUrl, getPayment, closePaymentQr, getFeedbacks, createFeedback } from '../../utils/api.js'
+import { getBookings, updateBookingStatus, getPromotions, applyBookingPromotion, createPaymentUrl, getPayment, closePaymentQr, getFeedbacks, createFeedback, uploadImage } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
 import './order_history.css'
 
@@ -44,7 +44,7 @@ const getQrExpiresAt = (qrPayment) => {
 }
 
 const formatDateTime = (value) => {
-  if (!value) return '—'
+  if (!value) return '- '
   try {
     return new Intl.DateTimeFormat('vi-VN', {
       day: '2-digit', month: '2-digit', year: 'numeric',
@@ -87,7 +87,7 @@ function normaliseBooking(booking, index) {
     ?? payments[0]
     ?? null
 
-  // pick image: partner concept image → partner cover → fallback
+  // pick image: partner concept image -> partner cover -> fallback
   const image =
     pc.image_des ||
     partner.cover_image ||
@@ -104,7 +104,7 @@ function normaliseBooking(booking, index) {
     serviceName: concept.name ?? 'Dịch vụ Matcha',
     partnerName: partner.band_name ?? 'Matcha Partner',
     partnerId: partner.id,
-    location: partner.location_name ?? '—',
+    location: partner.location_name ?? '- ',
     bookingTime: booking.booking_time,
     price: grossPrice,
     discount,
@@ -164,7 +164,7 @@ function OrderHistory() {
   const [feedbackModal, setFeedbackModal] = useState(null)
   const [feedbackRating, setFeedbackRating] = useState(5)
   const [feedbackDescription, setFeedbackDescription] = useState('')
-  const [feedbackImage, setFeedbackImage] = useState('')
+  const [feedbackImageFile, setFeedbackImageFile] = useState(null)
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
   const [feedbackError, setFeedbackError] = useState(null)
 
@@ -207,10 +207,35 @@ function OrderHistory() {
     setFeedbackModal({ order, target })
     setFeedbackRating(5)
     setFeedbackDescription('')
-    setFeedbackImage('')
+    setFeedbackImageFile(null)
     setFeedbackError(null)
   }
 
+  const handleFeedbackImageChange = (event) => {
+    const file = event.target.files?.[0]
+    setFeedbackError(null)
+
+    if (!file) {
+      setFeedbackImageFile(null)
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      event.target.value = ''
+      setFeedbackImageFile(null)
+      setFeedbackError('Vui lòng chọn file ảnh hợp lệ.')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      event.target.value = ''
+      setFeedbackImageFile(null)
+      setFeedbackError('Ảnh tối đa 5MB.')
+      return
+    }
+
+    setFeedbackImageFile(file)
+  }
   const handleSubmitFeedback = async (event) => {
     event.preventDefault()
     if (!feedbackModal?.target?.id || submittingFeedback) return
@@ -218,11 +243,18 @@ function OrderHistory() {
     setSubmittingFeedback(true)
     setFeedbackError(null)
     try {
+      let uploadedImageUrl
+      if (feedbackImageFile) {
+        const payload = await uploadImage(feedbackImageFile)
+        uploadedImageUrl = payload?.url
+        if (!uploadedImageUrl) throw new Error('Không nhận được URL ảnh sau khi upload.')
+      }
+
       await createFeedback({
         booking_detail_id: feedbackModal.target.id,
         rating: feedbackRating,
         description: feedbackDescription.trim() || undefined,
-        image: feedbackImage.trim() || undefined,
+        image: uploadedImageUrl || undefined,
       })
       setReviewedDetailIds((current) => new Set([...current, feedbackModal.target.id]))
       setFeedbackModal(null)
@@ -595,7 +627,7 @@ function OrderHistory() {
 
                       <div className="order-card__meta">
                         <span>{formatDateTime(order.bookingTime)}</span>
-                        {order.location !== '—' && <span>📍 {order.location}</span>}
+                        {order.location !== '-' && <span>📍 {order.location}</span>}
                         <span>{paymentMeta[order.paymentStatus] ?? order.paymentStatus}</span>
                       </div>
 
@@ -804,13 +836,16 @@ function OrderHistory() {
             </label>
 
             <label className="order-feedback-field">
-              <span>Ảnh minh họa (URL, tùy chọn)</span>
+              <span>Ảnh minh họa (tùy chọn)</span>
               <input
-                type="url"
-                value={feedbackImage}
-                onChange={(event) => setFeedbackImage(event.target.value)}
-                placeholder="https://..."
+                type="file"
+                accept="image/*"
+                onChange={handleFeedbackImageChange}
+                disabled={submittingFeedback}
               />
+              {feedbackImageFile && (
+                <small className="order-feedback-file-name">{feedbackImageFile.name}</small>
+              )}
             </label>
 
             {feedbackError && <p className="order-feedback-error">{feedbackError}</p>}
@@ -1436,3 +1471,10 @@ function OrderHistory() {
 }
 
 export default OrderHistory
+
+
+
+
+
+
+
