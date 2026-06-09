@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { clearAuthUser, getAuthUser, subscribeAuthChange } from '../utils/auth.js'
-import { getCart, signOut } from '../utils/api.js'
+import { getCart, getChatUnreadCount, signOut } from '../utils/api.js'
 import './layout.css'
 
 const getCurrentRoute = () => window.location.pathname || '/'
@@ -20,6 +20,7 @@ function Header() {
   const currentRoute = getCurrentRoute()
   const [authUser, setAuthUserState] = useState(getAuthUser)
   const [cartCount, setCartCount] = useState(0)
+  const [chatUnreadCount, setChatUnreadCount] = useState(0)
 
   useEffect(() => subscribeAuthChange(setAuthUserState), [])
 
@@ -49,6 +50,35 @@ function Header() {
       window.removeEventListener('matcha-cart-change', handleCartChange)
     }
   }, [authUser])
+
+  const fetchChatUnreadCount = useCallback(async () => {
+    if (!authUser) {
+      setChatUnreadCount(0)
+      return
+    }
+    try {
+      const payload = await getChatUnreadCount()
+      setChatUnreadCount(Number(payload?.count ?? 0))
+    } catch {
+      setChatUnreadCount(0)
+    }
+  }, [authUser])
+
+  useEffect(() => {
+    const initialTimer = window.setTimeout(fetchChatUnreadCount, 0)
+
+    const timer = window.setInterval(fetchChatUnreadCount, 10000)
+    const handleChatUnreadChange = () => fetchChatUnreadCount()
+
+    window.addEventListener('focus', handleChatUnreadChange)
+    window.addEventListener('matcha-chat-unread-change', handleChatUnreadChange)
+    return () => {
+      window.clearTimeout(initialTimer)
+      window.clearInterval(timer)
+      window.removeEventListener('focus', handleChatUnreadChange)
+      window.removeEventListener('matcha-chat-unread-change', handleChatUnreadChange)
+    }
+  }, [fetchChatUnreadCount])
 
   const handleLogout = async () => {
     try {
@@ -108,7 +138,11 @@ function Header() {
         >
           Lịch sử đơn hàng
         </a>
-        <a href="/" onClick={(event) => navigate(event, '/')}>
+        <a
+          href="https://www.facebook.com/profile.php?id=61590803961448#"
+          target="_blank"
+          rel="noreferrer"
+        >
           Blogs
         </a>
       </nav>
@@ -149,7 +183,7 @@ function Header() {
         </button>
 
         <a
-          className={`nav-icon-btn ${currentRoute === '/chat' ? 'nav-icon-btn-active' : ''}`}
+          className={`nav-icon-btn nav-chat-btn ${currentRoute === '/chat' ? 'nav-icon-btn-active' : ''}`}
           href="/chat"
           aria-label="Tin nhắn"
           onClick={(event) => navigate(event, '/chat')}
@@ -163,6 +197,7 @@ function Header() {
               strokeLinejoin="round"
             />
           </svg>
+          {chatUnreadCount > 0 && <span className="nav-chat-dot" aria-label="Co tin nhan chua doc" />}
         </a>
 
         {authUser && (

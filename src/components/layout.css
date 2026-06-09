@@ -1,4 +1,4 @@
-.top-nav {
+﻿.top-nav {
   position: absolute;
   top: 0;
   left: 0;
@@ -116,6 +116,10 @@
   position: relative;
 }
 
+.nav-chat-btn {
+  position: relative;
+}
+
 .nav-cart-badge {
   position: absolute;
   top: -3px;
@@ -132,6 +136,18 @@
   line-height: 1;
   font-weight: 800;
   border: 2px solid rgba(10, 18, 28, 0.32);
+}
+
+.nav-chat-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ff3b30;
+  border: 2px solid rgba(10, 18, 28, 0.78);
+  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.2);
 }
 
 .nav-avatar-btn {
@@ -180,23 +196,45 @@
   margin-top: 0;
   border-top: 1px solid #e9dfd1;
   padding: 34px 24px 44px;
-  text-align: center;
   color: #868076;
   background: #f7f3eb;
+}
+
+.home-footer__grid {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 32px;
+  align-items: start;
+}
+
+.footer-section h3 {
+  margin: 0 0 14px;
+  color: #1f1713;
+  font-size: 16px;
+  font-weight: 800;
 }
 
 .footer-links {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 20px;
-  margin-bottom: 18px;
+  gap: 14px 22px;
 }
 
 .footer-links a {
   color: #6f695f;
   text-decoration: none;
   font-size: 14px;
+  font-weight: 700;
+}
+
+.footer-links a:hover {
+  color: #1f1713;
+}
+
+.footer-contact {
+  text-align: right;
 }
 
 .home-footer p {
@@ -254,5 +292,15 @@
   .nav-icon-btn {
     width: 38px;
     height: 38px;
+  }
+}
+
+@media (max-width: 720px) {
+  .home-footer__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .footer-contact {
+    text-align: left;
   }
 }

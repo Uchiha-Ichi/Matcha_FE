@@ -45,14 +45,14 @@ function getBookingTimes() {
 }
 
 /** Format ngày + giờ đẹp cho hiển thị */
-function formatBookingDisplay(dateStr, timeStr) {
+function formatBookingDisplay(dateStr, timeStr, endTimeStr) {
   if (!dateStr || !timeStr) return null
   try {
     const date = new Date(`${dateStr}T${timeStr}:00`)
     const dayLabel = date.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })
-    return `${dayLabel} · ${timeStr}`
+    return `${dayLabel} · ${timeStr}${endTimeStr ? ` - ${endTimeStr}` : ''}`
   } catch {
-    return `${dateStr} · ${timeStr}`
+    return `${dateStr} · ${timeStr}${endTimeStr ? ` - ${endTimeStr}` : ''}`
   }
 }
 
@@ -475,7 +475,7 @@ function Cart() {
             <div className="cart-list">
               {cartItems.map((item) => {
                 const bt = bookingTimes[item.partnerConceptId]
-                const bookingDisplay = bt ? formatBookingDisplay(bt.date, bt.time) : null
+                const bookingDisplay = bt ? formatBookingDisplay(bt.date, bt.time, bt.endTime) : null
                 return (
                   <article key={item.id} className="cart-item">
                     <label className="cart-item__select" aria-label={`Chọn ${item.serviceName}`}>
@@ -553,7 +553,7 @@ function Cart() {
               </h3>
               {selectedItems.map((item) => {
                 const bt = bookingTimes[item.partnerConceptId]
-                const display = bt ? formatBookingDisplay(bt.date, bt.time) : null
+                const display = bt ? formatBookingDisplay(bt.date, bt.time, bt.endTime) : null
                 return (
                   <div key={item.id} className="cart-booking-summary__row">
                     <span className="cart-booking-summary__name">{item.serviceName}</span>

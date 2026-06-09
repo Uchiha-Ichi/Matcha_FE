@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import AboutMatcha from './pages/about_matcha/about_matcha.jsx'
 import AdminDashboard from './pages/admin_dashboard/admin_dashboard.jsx'
 import AiIdeaResult from './pages/ai_idea_result/ai_idea_result.jsx'
@@ -6,6 +6,7 @@ import Cart from './pages/cart/cart.jsx'
 import Chat from './pages/chat/chat.jsx'
 import ForgotPassword from './pages/forgot_password/forgot_password.jsx'
 import Homepage from './pages/homepage/homepage.jsx'
+import InfoPage from './pages/info_pages/info_page.jsx'
 import Login from './pages/login/login.jsx'
 import OrderHistory from './pages/order_history/order_history.jsx'
 import PartnerBookings from './pages/partner_bookings/partner_bookings.jsx'
@@ -21,17 +22,11 @@ import { getAuthUser } from './utils/auth.js'
 
 const getCurrentRoute = () => window.location.pathname || '/'
 
-/**
- * Trích ID từ path `/service-detail/123` → 123
- */
 function extractServiceDetailId(path) {
   const match = path.match(/^\/service-detail\/(\d+)$/)
   return match ? Number(match[1]) : null
 }
 
-/**
- * Trích ID từ path `/bookings/123` → 123
- */
 function extractBookingId(path) {
   const match = path.match(/^\/bookings\/(\d+)$/)
   return match ? Number(match[1]) : null
@@ -41,7 +36,6 @@ function extractPartnerServiceDetailId(path) {
   const match = path.match(/^\/partner-services\/(\d+)$/)
   return match ? Number(match[1]) : null
 }
-
 
 function App() {
   const [route, setRoute] = useState(getCurrentRoute)
@@ -64,6 +58,18 @@ function App() {
     return <AboutMatcha />
   }
 
+  if (route === '/terms-of-service') {
+    return <InfoPage type="terms" />
+  }
+
+  if (route === '/privacy-policy') {
+    return <InfoPage type="privacy" />
+  }
+
+  if (route === '/photo-process') {
+    return <InfoPage type="process" />
+  }
+
   if (route === '/login') {
     return <Login />
   }
@@ -72,7 +78,6 @@ function App() {
     return <ForgotPassword />
   }
 
-  // Hỗ trợ cả /service-detail (cũ, ko có id) và /service-detail/:id (mới)
   const serviceDetailId = extractServiceDetailId(route)
   if (serviceDetailId !== null) {
     return <ServiceDetail partnerConceptId={serviceDetailId} />

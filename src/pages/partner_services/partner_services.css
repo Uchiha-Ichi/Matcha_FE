@@ -183,3 +183,36 @@
   transform: scale(1.05);
   opacity: 0.95;
 }
+
+.partner-concept-create-box {
+  display: grid;
+  gap: 12px;
+  border: 1px dashed #d8cabc;
+  border-radius: 16px;
+  background: #fbf7f1;
+  padding: 12px;
+}
+
+.partner-service-form .partner-concept-create-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.partner-service-form .partner-concept-create-toggle input {
+  width: 18px;
+  min-height: 18px;
+  padding: 0;
+  accent-color: #1f1713;
+}
+
+.partner-service-form .partner-concept-create-toggle span {
+  color: #171411;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.partner-concept-create-fields {
+  display: grid;
+  gap: 12px;
+}

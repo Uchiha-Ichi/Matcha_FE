@@ -13,6 +13,21 @@ const roles = [
   { id: 'partner', label: 'Đối tác' },
 ]
 
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const phonePattern = /^(0|\+84)\d{9}$/
+
+const getErrorText = (message) => Array.isArray(message) ? message.join('\n') : message
+
+const getRegisterValidationError = ({ fullName, email, phone, password, confirmPassword, acceptedTerms }) => {
+  if (!fullName || fullName.trim().length < 2) return 'Vui lòng nhập họ tên tối thiểu 2 ký tự'
+  if (!emailPattern.test(email)) return 'Email không đúng định dạng'
+  if (phone && !phonePattern.test(phone)) return 'Số điện thoại không đúng định dạng. Ví dụ: 0912345678'
+  if (!password || password.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự'
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) return 'Mật khẩu phải có cả chữ và số'
+  if (password !== confirmPassword) return 'Mật khẩu xác nhận không khớp'
+  if (!acceptedTerms) return 'Vui lòng đồng ý với điều khoản sử dụng'
+  return null
+}
 const navigate = (event, path) => {
   event.preventDefault()
   navigateTo(path)
@@ -42,7 +57,7 @@ function Login({ closeHref = '/' }) {
     setLoading(true)
 
     const formData = new FormData(event.currentTarget)
-    const email = formData.get('email')?.toString().trim()
+    const email = formData.get('email')?.toString().trim().toLowerCase()
     const password = formData.get('password')?.toString()
 
     if (!email || !password) {
@@ -51,20 +66,29 @@ function Login({ closeHref = '/' }) {
       return
     }
 
+    if (!emailPattern.test(email)) {
+      setError('Email không đúng định dạng')
+      setLoading(false)
+      return
+    }
     try {
       if (isRegister) {
         const fullName = formData.get('fullName')?.toString().trim()
         const phone = formData.get('phone')?.toString().trim()
         const confirmPassword = formData.get('confirmPassword')?.toString()
 
-        if (!fullName) {
-          setError('Vui lòng nhập họ và tên')
-          setLoading(false)
-          return
-        }
+        const acceptedTerms = formData.get('termsAccepted') === 'on'
+        const validationError = getRegisterValidationError({
+          fullName,
+          email,
+          phone,
+          password,
+          confirmPassword,
+          acceptedTerms,
+        })
 
-        if (password !== confirmPassword) {
-          setError('Mật khẩu xác nhận không khớp')
+        if (validationError) {
+          setError(validationError)
           setLoading(false)
           return
         }
@@ -113,7 +137,7 @@ function Login({ closeHref = '/' }) {
         navigateTo('/admin-dashboard')
       }
     } catch (err) {
-      setError(err.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.')
+      setError(getErrorText(err.message) || 'Đã có lỗi xảy ra. Vui lòng thử lại.')
     } finally {
       setLoading(false)
     }
@@ -266,7 +290,7 @@ function Login({ closeHref = '/' }) {
 
           <div className="login-form__meta">
             <label className="login-form__check">
-              <input type="checkbox" defaultChecked={!isRegister} />
+              <input type="checkbox" key={isRegister ? 'terms' : 'remember'} name="termsAccepted" defaultChecked={!isRegister} />
               <span>
                 {isRegister ? 'Tôi đồng ý với điều khoản sử dụng' : 'Ghi nhớ đăng nhập'}
               </span>

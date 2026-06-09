@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { clearAuthUser, getAuthUser } from '../../utils/auth.js'
-import { getBookings, getMyPartner, getPartnerConcepts, updateBookingStatus } from '../../utils/api.js'
+import { getBookings, getChatUnreadCount, getMyPartner, getPartnerConcepts, updateBookingStatus } from '../../utils/api.js'
 import LoadingScreen from '../../components/LoadingScreen.jsx'
 import './partner_dashboard.css'
 
@@ -21,7 +21,7 @@ const formatPrice = (value) =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value ?? 0)
 
 const formatDateTime = (value) => {
-  if (!value) return '—'
+  if (!value) return '-'
   try {
     return new Intl.DateTimeFormat('vi-VN', {
       day: '2-digit',
@@ -50,6 +50,34 @@ const handleLogout = () => {
 
 export function PartnerDashboardHeader({ partner, activePath = '/partner-dashboard' }) {
   const authUser = getAuthUser()
+  const [chatUnreadCount, setChatUnreadCount] = useState(0)
+
+  useEffect(() => {
+    if (!authUser) {
+      return undefined
+    }
+
+    const fetchChatUnreadCount = async () => {
+      try {
+        const payload = await getChatUnreadCount()
+        setChatUnreadCount(Number(payload?.count ?? 0))
+      } catch {
+        setChatUnreadCount(0)
+      }
+    }
+
+    const initialTimer = window.setTimeout(fetchChatUnreadCount, 0)
+    const timer = window.setInterval(fetchChatUnreadCount, 10000)
+    window.addEventListener('focus', fetchChatUnreadCount)
+    window.addEventListener('matcha-chat-unread-change', fetchChatUnreadCount)
+
+    return () => {
+      window.clearTimeout(initialTimer)
+      window.clearInterval(timer)
+      window.removeEventListener('focus', fetchChatUnreadCount)
+      window.removeEventListener('matcha-chat-unread-change', fetchChatUnreadCount)
+    }
+  }, [authUser])
 
   return (
     <header className="partner-admin-header">
@@ -72,7 +100,7 @@ export function PartnerDashboardHeader({ partner, activePath = '/partner-dashboa
         </span>
         <div>
           <strong>MATCHA PARTNER</strong>
-          <em>{partner?.band_name ?? '…'}</em>
+          <em>{partner?.band_name ?? '...'}</em>
         </div>
       </a>
 
@@ -105,7 +133,12 @@ export function PartnerDashboardHeader({ partner, activePath = '/partner-dashboa
         >
           Lịch chặn
         </a>
-        <a href="/chat" onClick={(event) => navigate(event, '/chat')}>
+        <a
+          className={`partner-admin-nav__chat ${activePath === '/chat' ? 'partner-admin-nav__active' : ''}`}
+          href="/chat"
+          onClick={(event) => navigate(event, '/chat')}
+        >
+          {chatUnreadCount > 0 && <span className="partner-admin-nav__dot" aria-label="Co tin nhan chua doc" />}
           Tin nhắn
         </a>
       </nav>
@@ -275,7 +308,6 @@ function PartnerDashboard() {
                 const conceptName =
                   booking.details?.[0]?.partner_concept?.concept?.name ?? 'Dịch vụ'
 
-                // Next valid status transitions
                 const nextStatus =
                   booking.status === 'pending'
                     ? 'confirmed'
@@ -317,7 +349,7 @@ function PartnerDashboard() {
                             onClick={() => handleUpdateStatus(booking.id, nextStatus)}
                           >
                             {updatingId === booking.id
-                              ? 'Đang cập nhật…'
+                              ? 'Đang cập nhật...'
                               : nextStatus === 'confirmed'
                                 ? 'Xác nhận'
                                 : 'Hoàn thành'}
@@ -346,14 +378,25 @@ function PartnerDashboard() {
             </div>
 
             <div className="partner-service-grid">
-              {services.map((service) => (
-                <article key={service.id}>
-                  <span>{service.time}</span>
-                  <h3>{service.concept?.name ?? 'Concept'}</h3>
-                  <p>{service.image_des}</p>
-                  <strong>{formatPrice(service.price)}</strong>
-                </article>
-              ))}
+              {services.map((service) => {
+                const serviceImage =
+                  service.image_des ||
+                  service.images?.find((image) => image.is_primary)?.image_src ||
+                  service.images?.[0]?.image_src ||
+                  partner?.cover_image ||
+                  'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=800&q=80'
+
+                return (
+                  <article key={service.id}>
+                    <img src={serviceImage} alt={service.concept?.name ?? 'Concept'} />
+                    <div className="partner-service-card__body">
+                      <span>{service.time}</span>
+                      <h3>{service.concept?.name ?? 'Concept'}</h3>
+                      <strong>{formatPrice(service.price)}</strong>
+                    </div>
+                  </article>
+                )
+              })}
               {services.length === 0 && (
                 <p className="partner-empty-text">Chưa có dịch vụ nào.</p>
               )}
