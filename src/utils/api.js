@@ -1,18 +1,58 @@
 // Dùng relative URL để request qua Vite proxy → không có CORS issue
 const BASE_URL = '/api/v1'
+let refreshPromise = null
+
+const shouldTryRefresh = (path) =>
+  ![
+    '/auth/signin',
+    '/auth/signup',
+    '/auth/logout',
+    '/auth/refresh',
+  ].includes(path)
+
+const refreshAccessToken = async () => {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    }).finally(() => {
+      refreshPromise = null
+    })
+  }
+
+  const res = await refreshPromise
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }))
+    throw new Error(err.message ?? `HTTP ${res.status}`)
+  }
+
+  return res.json()
+}
 
 /**
  * Gọi API chung — tự động đính kèm cookie (credentials: 'include').
  */
 async function apiFetch(path, options = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const requestOptions = {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers ?? {}),
     },
     ...options,
-  })
+  }
+
+  let res = await fetch(`${BASE_URL}${path}`, requestOptions)
+
+  if (res.status === 401 && shouldTryRefresh(path)) {
+    try {
+      await refreshAccessToken()
+      res = await fetch(`${BASE_URL}${path}`, requestOptions)
+    } catch {
+      // Refresh token het han/khong hop le: giu nguyen loi 401 cua request ban dau.
+    }
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }))
@@ -61,6 +101,8 @@ export const getCategories = () => apiFetch('/categories')
 
 // ── Feedbacks ─────────────────────────────────────────────────────────────────
 export const getFeedbacks = () => apiFetch('/feedbacks')
+export const createFeedback = (dto) =>
+  apiFetch('/feedbacks', { method: 'POST', body: JSON.stringify(dto) })
 
 // ── Carts ─────────────────────────────────────────────────────────────────────
 export const getCart = () => apiFetch('/carts')
@@ -130,6 +172,9 @@ export const signOut = () =>
 
 export const getAuthStatus = () => apiFetch('/auth/me')
 
+// ── Chat ─────────────────────────────────────────────────────────────────────
+export const getChatUnreadCount = () => apiFetch('/chat/unread-count')
+
 // ── Date Blocks ───────────────────────────────────────────────────────────────
 export const getDateBlocks = () => apiFetch('/date-blocks')
 export const createDateBlock = (partnerId, date, startTime, endTime) =>
@@ -190,6 +235,22 @@ export const addImageToTarget = (targetType, targetId, file) => {
   formData.append('target_id', String(targetId))
   formData.append('file', file)
   return fetch('/api/v1/image/add-to-target', {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  }).then(async (res) => {
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }))
+      throw new Error(err.message ?? `HTTP ${res.status}`)
+    }
+    return res.json()
+  })
+}
+
+export const uploadImage = (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return fetch('/api/v1/image/upload', {
     method: 'POST',
     credentials: 'include',
     body: formData,

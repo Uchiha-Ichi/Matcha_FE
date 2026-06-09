@@ -378,10 +378,19 @@
 }
 
 .chat-bubble span {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   margin-top: 6px;
   font-size: 10.5px;
   font-weight: 700;
+}
+
+.chat-read-state {
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .chat-bubble--partner {
@@ -405,6 +414,10 @@
 
 .chat-bubble--me span {
   color: rgba(255, 255, 255, 0.62);
+}
+
+.chat-bubble--me .chat-read-state {
+  color: rgba(199, 246, 198, 0.9);
 }
 
 .chat-composer {
