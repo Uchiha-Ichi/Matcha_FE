@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { io } from 'socket.io-client'
+import { SOCKET_URL } from '../../utils/config.js'
 import Header from '../../components/Header.jsx'
 import { getAuthUser } from '../../utils/auth.js'
 import { getMyPartner } from '../../utils/api.js'
@@ -62,8 +63,10 @@ function Chat() {
     }
 
     setLoadingConv(true)
-    // Kết nối qua proxy `/socket.io` tới backend socket server (tránh cookie cross-origin)
-    const socket = io('/chat', {
+    // Dev: kết nối về cùng origin qua Vite proxy (SOCKET_URL = undefined)
+    // Production: kết nối thẳng tới Railway backend
+    const socketTarget = SOCKET_URL ? `${SOCKET_URL}/chat` : '/chat'
+    const socket = io(socketTarget, {
       transports: ['websocket'],
       withCredentials: true
     })

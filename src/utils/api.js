@@ -1,5 +1,6 @@
-// Dùng relative URL để request qua Vite proxy → không có CORS issue
-const BASE_URL = '/api/v1'
+import { API_BASE_URL } from './config.js'
+// API_BASE_URL = '/api/v1' khi dev (qua Vite proxy), absolute URL khi production
+const BASE_URL = API_BASE_URL
 let refreshPromise = null
 
 const shouldTryRefresh = (path) =>
@@ -66,7 +67,7 @@ async function apiFetch(path, options = {}) {
 export const getPartnerConcepts = () => apiFetch('/partner-concepts')
 export const getPartnerConcept = (id) => apiFetch(`/partner-concepts/${id}`)
 export const createPartnerConcept = (formData) =>
-  fetch('/api/v1/partner-concepts', {
+  fetch(`${BASE_URL}/partner-concepts`, {
     method: 'POST',
     credentials: 'include',
     body: formData, // FormData (no Content-Type header — browser sets boundary)
@@ -234,7 +235,7 @@ export const addImageToTarget = (targetType, targetId, file) => {
   formData.append('target_type', targetType)
   formData.append('target_id', String(targetId))
   formData.append('file', file)
-  return fetch('/api/v1/image/add-to-target', {
+  return fetch(`${BASE_URL}/image/add-to-target`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -250,7 +251,7 @@ export const addImageToTarget = (targetType, targetId, file) => {
 export const uploadImage = (file) => {
   const formData = new FormData()
   formData.append('file', file)
-  return fetch('/api/v1/image/upload', {
+  return fetch(`${BASE_URL}/image/upload`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
