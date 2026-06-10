@@ -68,7 +68,10 @@ function Chat() {
     const socketTarget = SOCKET_URL ? `${SOCKET_URL}/chat` : '/chat'
     const socket = io(socketTarget, {
       transports: ['websocket'],
-      withCredentials: true
+      withCredentials: true,
+      auth: {
+        token: authUser?.accessToken
+      }
     })
 
     socketRef.current = socket
