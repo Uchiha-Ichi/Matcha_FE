@@ -106,37 +106,6 @@ function PartnerBookings() {
   }, [authUser?.id])
 
   const handleUpdateStatus = async (bookingId, newStatus) => {
-    if (newStatus === 'completed') {
-      const booking = bookings.find((b) => b.id === bookingId)
-      const currentLink = booking?.result_link ?? ''
-      const url = window.prompt(
-        'Nhập link kết quả sản phẩm gửi cho khách hàng (Google Drive, Dropbox...):',
-        currentLink
-      )
-      if (url === null) return // Hủy thao tác
-
-      setUpdatingId(bookingId)
-      try {
-        // Cập nhật link trước
-        await updateBooking(bookingId, { result_link: url.trim() })
-        // Cập nhật trạng thái hoàn thành
-        await updateBookingStatus(bookingId, newStatus)
-        setBookings((prev) =>
-          prev.map((b) =>
-            b.id === bookingId
-              ? { ...b, status: newStatus, result_link: url.trim() }
-              : b,
-          ),
-        )
-        alert('Đã cập nhật link ảnh và hoàn thành đơn hàng!')
-      } catch (err) {
-        alert(`Cập nhật thất bại: ${err.message}`)
-      } finally {
-        setUpdatingId(null)
-      }
-      return
-    }
-
     setUpdatingId(bookingId)
     try {
       await updateBookingStatus(bookingId, newStatus)
@@ -204,7 +173,7 @@ function PartnerBookings() {
             const code = `MTC-${String(booking.id).padStart(5, '0')}`
             const transitions = STATUS_TRANSITIONS[booking.status] ?? []
 
-            const showResultLinkInput = (booking.status === 'completed') && isPhotoshootOrStudio
+            const showResultLinkInput = booking.status === 'completed'
 
             return (
               <div key={booking.id} className="partner-booking-card">
