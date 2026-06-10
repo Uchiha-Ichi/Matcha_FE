@@ -67,7 +67,7 @@ function PartnerBookings() {
   const handleSaveResultLink = async (bookingId) => {
     const inputEl = document.getElementById(`result-link-${bookingId}`)
     const url = inputEl?.value?.trim() ?? ''
-    
+
     setUpdatingLink(bookingId)
     try {
       await updateBooking(bookingId, { result_link: url })
@@ -173,7 +173,7 @@ function PartnerBookings() {
             const code = `MTC-${String(booking.id).padStart(5, '0')}`
             const transitions = STATUS_TRANSITIONS[booking.status] ?? []
 
-            const isCompletedAndPaid = booking.status === 'completed' && paymentStatus === 'paid'
+            const showResultLinkInput = (booking.status === 'completed') && isPhotoshootOrStudio
 
             return (
               <div key={booking.id} className="partner-booking-card">
@@ -226,7 +226,7 @@ function PartnerBookings() {
                   </div>
                 </article>
 
-                {isCompletedAndPaid && isPhotoshootOrStudio && (
+                {showResultLinkInput && (
                   <div className="partner-booking-result-link">
                     <label>🔗 LINK KẾT QUẢ SẢN PHẨM (GOOGLE DRIVE / DROPBOX):</label>
                     <div className="partner-booking-result-link-input-group">

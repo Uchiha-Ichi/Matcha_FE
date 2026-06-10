@@ -87,18 +87,23 @@ export default function PartnerServiceDetail({ partnerConceptId }) {
   }
 
   const handleUploadImage = async (event) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const files = Array.from(event.target.files || [])
+    if (files.length === 0) return
     setUploading(true)
     try {
-      await addImageToTarget('partner_concept', partnerConceptId, file)
-      showSuccess('Tải lên hình ảnh thành công!')
+      let count = 0
+      for (const file of files) {
+        await addImageToTarget('partner_concept', partnerConceptId, file)
+        count++
+      }
+      showSuccess(`Tải lên ${count} hình ảnh thành công!`)
       // Refresh local data
       await loadData()
     } catch (err) {
       alert(`Lỗi tải ảnh lên: ${err.message}`)
     } finally {
       setUploading(false)
+      event.target.value = ''
     }
   }
 
@@ -244,7 +249,7 @@ export default function PartnerServiceDetail({ partnerConceptId }) {
                 ) : (
                   <>
                     <span>+ Thêm hình ảnh</span>
-                    <input type="file" accept="image/*" onChange={handleUploadImage} style={{ display: 'none' }} disabled={uploading} />
+                    <input type="file" accept="image/*" onChange={handleUploadImage} style={{ display: 'none' }} disabled={uploading} multiple />
                   </>
                 )}
               </label>
