@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { setAuthUser } from '../../utils/auth.js'
+import { setAuthUser, getAuthUser } from '../../utils/auth.js'
 import { signIn, signUp, updateMe, getMe, getMyPartner } from '../../utils/api.js'
 import './login.css'
 
@@ -72,6 +72,7 @@ function Login({ closeHref = '/' }) {
       return
     }
     try {
+      let authData;
       if (isRegister) {
         const fullName = formData.get('fullName')?.toString().trim()
         const phone = formData.get('phone')?.toString().trim()
@@ -94,7 +95,15 @@ function Login({ closeHref = '/' }) {
         }
 
         // 1. Sign up
-        await signUp(fullName, email, password, phone, isPartner ? 2 : 3)
+        authData = await signUp(fullName, email, password, phone, isPartner ? 2 : 3)
+
+        // Save token temporarily so updateMe and getMe can use it via Authorization header
+        if (authData?.accessToken) {
+          setAuthUser({
+            accessToken: authData.accessToken,
+            refreshToken: authData.refreshToken,
+          })
+        }
 
         // 2. Cập nhật thông tin profile bổ sung (fullName, phone)
         const updateDto = {
@@ -104,7 +113,15 @@ function Login({ closeHref = '/' }) {
         await updateMe(updateDto)
       } else {
         // Sign in
-        await signIn(email, password)
+        authData = await signIn(email, password)
+
+        // Save token temporarily so getMe can use it via Authorization header
+        if (authData?.accessToken) {
+          setAuthUser({
+            accessToken: authData.accessToken,
+            refreshToken: authData.refreshToken,
+          })
+        }
       }
 
       // 3. Fetch detailed user profile to save in frontend auth state
@@ -116,6 +133,8 @@ function Login({ closeHref = '/' }) {
         phone: me.phone || '',
         role: me.role?.name || 'Customer',
         avatar: me.avatar_src || `https://i.pravatar.cc/100?u=matcha-${me.id}`,
+        accessToken: authData?.accessToken || getAuthUser()?.accessToken,
+        refreshToken: authData?.refreshToken || getAuthUser()?.refreshToken,
       }
 
       setAuthUser(userData)

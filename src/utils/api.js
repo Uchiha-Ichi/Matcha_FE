@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config.js'
+import { getAuthUser, setAuthUser } from './auth.js'
 // API_BASE_URL = '/api/v1' khi dev (qua Vite proxy), absolute URL khi production
 const BASE_URL = API_BASE_URL
 let refreshPromise = null
@@ -13,10 +14,17 @@ const shouldTryRefresh = (path) =>
 
 const refreshAccessToken = async () => {
   if (!refreshPromise) {
+    const authUser = getAuthUser()
+    const token = authUser?.refreshToken
+
     refreshPromise = fetch(`${BASE_URL}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: token ? JSON.stringify({ refreshToken: token }) : undefined,
     }).finally(() => {
       refreshPromise = null
     })
@@ -28,17 +36,33 @@ const refreshAccessToken = async () => {
     throw new Error(err.message ?? `HTTP ${res.status}`)
   }
 
-  return res.json()
+  const data = await res.json()
+  if (data.accessToken) {
+    const authUser = getAuthUser()
+    if (authUser) {
+      authUser.accessToken = data.accessToken
+      if (data.refreshToken) {
+        authUser.refreshToken = data.refreshToken
+      }
+      setAuthUser(authUser)
+    }
+  }
+
+  return data
 }
 
 /**
- * Gọi API chung — tự động đính kèm cookie (credentials: 'include').
+ * Gọi API chung — tự động đính kèm cookie (credentials: 'include') hoặc Authorization Bearer token.
  */
 async function apiFetch(path, options = {}) {
+  const authUser = getAuthUser()
+  const token = authUser?.accessToken
+
   const requestOptions = {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers ?? {}),
     },
     ...options,
@@ -48,8 +72,16 @@ async function apiFetch(path, options = {}) {
 
   if (res.status === 401 && shouldTryRefresh(path)) {
     try {
-      await refreshAccessToken()
-      res = await fetch(`${BASE_URL}${path}`, requestOptions)
+      const refreshData = await refreshAccessToken()
+      const newToken = refreshData?.accessToken
+      const newRequestOptions = {
+        ...requestOptions,
+        headers: {
+          ...requestOptions.headers,
+          ...(newToken ? { Authorization: `Bearer ${newToken}` } : {}),
+        }
+      }
+      res = await fetch(`${BASE_URL}${path}`, newRequestOptions)
     } catch {
       // Refresh token het han/khong hop le: giu nguyen loi 401 cua request ban dau.
     }
@@ -66,10 +98,13 @@ async function apiFetch(path, options = {}) {
 // ── Partner Concepts ───────────────────────────────────────────────────────────
 export const getPartnerConcepts = () => apiFetch('/partner-concepts')
 export const getPartnerConcept = (id) => apiFetch(`/partner-concepts/${id}`)
-export const createPartnerConcept = (formData) =>
-  fetch(`${BASE_URL}/partner-concepts`, {
+export const createPartnerConcept = (formData) => {
+  const authUser = getAuthUser()
+  const token = authUser?.accessToken
+  return fetch(`${BASE_URL}/partner-concepts`, {
     method: 'POST',
     credentials: 'include',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData, // FormData (no Content-Type header — browser sets boundary)
   }).then(async (res) => {
     if (!res.ok) {
@@ -78,6 +113,7 @@ export const createPartnerConcept = (formData) =>
     }
     return res.json()
   })
+}
 export const updatePartnerConcept = (id, dto) =>
   apiFetch(`/partner-concepts/${id}`, { method: 'PATCH', body: JSON.stringify(dto) })
 export const deletePartnerConcept = (id) =>
@@ -231,6 +267,8 @@ export const setPrimaryImage = (id, targetType, targetId) =>
     body: JSON.stringify({ target_type: targetType, target_id: targetId }),
   })
 export const addImageToTarget = (targetType, targetId, file) => {
+  const authUser = getAuthUser()
+  const token = authUser?.accessToken
   const formData = new FormData()
   formData.append('target_type', targetType)
   formData.append('target_id', String(targetId))
@@ -238,6 +276,7 @@ export const addImageToTarget = (targetType, targetId, file) => {
   return fetch(`${BASE_URL}/image/add-to-target`, {
     method: 'POST',
     credentials: 'include',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   }).then(async (res) => {
     if (!res.ok) {
@@ -249,11 +288,14 @@ export const addImageToTarget = (targetType, targetId, file) => {
 }
 
 export const uploadImage = (file) => {
+  const authUser = getAuthUser()
+  const token = authUser?.accessToken
   const formData = new FormData()
   formData.append('file', file)
   return fetch(`${BASE_URL}/image/upload`, {
     method: 'POST',
     credentials: 'include',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   }).then(async (res) => {
     if (!res.ok) {
