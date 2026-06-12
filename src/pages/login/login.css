@@ -441,3 +441,37 @@
     align-items: flex-start;
   }
 }
+
+.login-form__email-wrap {
+  display: flex;
+  gap: 12px;
+}
+
+.login-form__email-wrap input {
+  flex: 1;
+}
+
+.login-form__email-btn {
+  min-height: 64px;
+  padding: 0 24px;
+  border-radius: 20px;
+  border: 1px solid #ddcdbb;
+  background: #1f1713;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.login-form__email-btn:hover:not(:disabled) {
+  background: #3a2b25;
+}
+
+.login-form__email-btn:disabled {
+  background: #ede1d5;
+  color: #aa9788;
+  cursor: not-allowed;
+  border-color: #ddcdbb;
+}

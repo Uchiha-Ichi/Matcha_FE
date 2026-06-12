@@ -10,6 +10,10 @@ const shouldTryRefresh = (path) =>
     '/auth/signup',
     '/auth/logout',
     '/auth/refresh',
+    '/auth/forgot-password',
+    '/auth/verify-otp',
+    '/auth/reset-password',
+    '/auth/signup/send-otp',
   ].includes(path)
 
 const refreshAccessToken = async () => {
@@ -193,8 +197,8 @@ export const signIn = (email, password) =>
     body: JSON.stringify({ email, password }),
   })
 
-export const signUp = (full_name, email, password, phone, role_id) => {
-  const payload = { full_name, email, password, role_id }
+export const signUp = (full_name, email, password, phone, role_id, otp) => {
+  const payload = { full_name, email, password, role_id, otp }
   if (phone) payload.phone = phone
   return apiFetch('/auth/signup', {
     method: 'POST',
@@ -202,12 +206,36 @@ export const signUp = (full_name, email, password, phone, role_id) => {
   })
 }
 
+export const sendSignUpOtp = (email) =>
+  apiFetch('/auth/signup/send-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
+
 export const signOut = () =>
   apiFetch('/auth/logout', {
     method: 'POST',
   })
 
 export const getAuthStatus = () => apiFetch('/auth/me')
+
+export const sendForgotPasswordOtp = (email) =>
+  apiFetch('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
+
+export const verifyForgotPasswordOtp = (email, otp) =>
+  apiFetch('/auth/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp }),
+  })
+
+export const resetPassword = (email, otp, password) =>
+  apiFetch('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp, password }),
+  })
 
 // ── Chat ─────────────────────────────────────────────────────────────────────
 export const getChatUnreadCount = () => apiFetch('/chat/unread-count')

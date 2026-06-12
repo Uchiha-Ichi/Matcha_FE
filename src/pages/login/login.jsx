@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { setAuthUser, getAuthUser } from '../../utils/auth.js'
-import { signIn, signUp, updateMe, getMe, getMyPartner } from '../../utils/api.js'
+import { signIn, signUp, updateMe, getMe, getMyPartner, sendSignUpOtp } from '../../utils/api.js'
 import './login.css'
 
 const tabs = [
@@ -18,9 +18,10 @@ const phonePattern = /^(0|\+84)\d{9}$/
 
 const getErrorText = (message) => Array.isArray(message) ? message.join('\n') : message
 
-const getRegisterValidationError = ({ fullName, email, phone, password, confirmPassword, acceptedTerms }) => {
+const getRegisterValidationError = ({ fullName, email, phone, password, confirmPassword, acceptedTerms, otp }) => {
   if (!fullName || fullName.trim().length < 2) return 'Vui lòng nhập họ tên tối thiểu 2 ký tự'
   if (!emailPattern.test(email)) return 'Email không đúng định dạng'
+  if (!otp || otp.trim().length < 6) return 'Vui lòng nhập mã xác thực gồm 6 ký tự'
   if (phone && !phonePattern.test(phone)) return 'Số điện thoại không đúng định dạng. Ví dụ: 0912345678'
   if (!password || password.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự'
   if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) return 'Mật khẩu phải có cả chữ và số'
@@ -47,26 +48,58 @@ function Login({ closeHref = '/' }) {
   const [activeRole, setActiveRole] = useState('customer')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [email, setEmail] = useState('')
+  const [otp, setOtp] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
+  const [otpLoading, setOtpLoading] = useState(false)
+  const [successMessage, setSuccessMessage] = useState(null)
 
   const isRegister = activeTab === 'register'
   const isPartner = activeRole === 'partner'
 
+  const handleSendRegisterOtp = async (e) => {
+    e.preventDefault()
+    setError(null)
+    setSuccessMessage(null)
+
+    if (!email) {
+      setError('Vui lòng nhập email trước')
+      return
+    }
+    if (!emailPattern.test(email)) {
+      setError('Email không đúng định dạng')
+      return
+    }
+
+    setOtpLoading(true)
+    try {
+      const res = await sendSignUpOtp(email)
+      setOtpSent(true)
+      setSuccessMessage(res.message || 'Mã xác thực đã được gửi đến email của bạn')
+    } catch (err) {
+      setError(getErrorText(err.message) || 'Không thể gửi mã xác thực. Vui lòng thử lại.')
+    } finally {
+      setOtpLoading(false)
+    }
+  }
+
   const handleSubmit = async (event) => {
     event.preventDefault()
     setError(null)
+    setSuccessMessage(null)
     setLoading(true)
 
     const formData = new FormData(event.currentTarget)
-    const email = formData.get('email')?.toString().trim().toLowerCase()
+    const emailVal = isRegister ? email : formData.get('email')?.toString().trim().toLowerCase()
     const password = formData.get('password')?.toString()
 
-    if (!email || !password) {
+    if (!emailVal || !password) {
       setError('Vui lòng điền đầy đủ email và mật khẩu')
       setLoading(false)
       return
     }
 
-    if (!emailPattern.test(email)) {
+    if (!emailPattern.test(emailVal)) {
       setError('Email không đúng định dạng')
       setLoading(false)
       return
@@ -77,15 +110,17 @@ function Login({ closeHref = '/' }) {
         const fullName = formData.get('fullName')?.toString().trim()
         const phone = formData.get('phone')?.toString().trim()
         const confirmPassword = formData.get('confirmPassword')?.toString()
+        const otpVal = formData.get('otp')?.toString().trim()
 
         const acceptedTerms = formData.get('termsAccepted') === 'on'
         const validationError = getRegisterValidationError({
           fullName,
-          email,
+          email: emailVal,
           phone,
           password,
           confirmPassword,
           acceptedTerms,
+          otp: otpVal,
         })
 
         if (validationError) {
@@ -95,7 +130,7 @@ function Login({ closeHref = '/' }) {
         }
 
         // 1. Sign up
-        authData = await signUp(fullName, email, password, phone, isPartner ? 2 : 3)
+        authData = await signUp(fullName, emailVal, password, phone, isPartner ? 2 : 3, otpVal)
 
         // Save token temporarily so updateMe and getMe can use it via Authorization header
         if (authData?.accessToken) {
@@ -235,6 +270,22 @@ function Login({ closeHref = '/' }) {
             </div>
           )}
 
+          {successMessage && (
+            <div className="login-form__success" style={{
+              background: 'rgba(46, 125, 50, 0.08)',
+              border: '1px solid rgba(46, 125, 50, 0.2)',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              color: '#2e7d32',
+              fontSize: '14px',
+              marginBottom: '20px',
+              textAlign: 'center',
+              lineHeight: '1.4'
+            }}>
+              ✓ {successMessage}
+            </div>
+          )}
+
           {isRegister && (
             <div className="login-form__section">
               <p className="login-form__section-title">Bạn đăng ký với vai trò</p>
@@ -263,8 +314,48 @@ function Login({ closeHref = '/' }) {
 
           <label className="login-form__field">
             <span>Email</span>
-            <input type="email" name="email" placeholder="Nhập email" required />
+            {isRegister ? (
+              <div className="login-form__email-wrap">
+                <input
+                  type="email"
+                  placeholder="Nhập email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    setOtpSent(false)
+                  }}
+                  disabled={loading}
+                  required
+                />
+                <button
+                  type="button"
+                  className="login-form__email-btn"
+                  onClick={handleSendRegisterOtp}
+                  disabled={otpLoading || !email || loading}
+                >
+                  {otpLoading ? 'Đang gửi...' : otpSent ? 'Gửi lại mã' : 'Gửi mã'}
+                </button>
+              </div>
+            ) : (
+              <input type="email" name="email" placeholder="Nhập email" required />
+            )}
           </label>
+
+          {isRegister && (
+            <label className="login-form__field">
+              <span>Mã xác thực</span>
+              <input
+                type="text"
+                name="otp"
+                placeholder="Nhập mã gồm 6 chữ số"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                maxLength={6}
+                disabled={loading}
+                required
+              />
+            </label>
+          )}
 
           {isRegister && (
             <label className="login-form__field">
