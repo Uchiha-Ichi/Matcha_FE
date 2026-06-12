@@ -307,6 +307,22 @@ function Login({ closeHref = '/' }) {
           ))}
         </div>
 
+        <button
+          type="button"
+          className="login-form__google-btn"
+          onClick={handleGoogleLogin}
+          disabled={loading}
+        >
+          <svg className="google-icon" viewBox="0 0 24 24" width="20" height="20">
+            <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114A5.57 5.57 0 0 1 8.35 13a5.57 5.57 0 0 1 5.64-5.514c1.458 0 2.78.502 3.82 1.332l3.1-3.1C18.847 3.738 15.65 2.5 12.24 2.5a10.5 10.5 0 0 0-10.5 10.5 10.5 10.5 0 0 0 10.5 10.5c5.786 0 9.617-3.96 9.617-9.614a9.72 9.72 0 0 0-.117-1.6H12.24z"/>
+          </svg>
+          Tiếp tục với Google
+        </button>
+
+        <div className="login-form__divider">
+          <span>{isRegister ? 'hoặc đăng ký bằng email' : 'hoặc đăng nhập bằng email'}</span>
+        </div>
+
         <form
           className={`login-form ${isRegister ? 'login-form--register' : ''}`}
           onSubmit={handleSubmit}
@@ -478,22 +494,6 @@ function Login({ closeHref = '/' }) {
             {loading ? 'Đang xử lý...' : isRegister ? 'Tạo tài khoản' : 'Đăng nhập'}
           </button>
         </form>
-
-        <div className="login-form__divider">
-          <span>hoặc</span>
-        </div>
-
-        <button
-          type="button"
-          className="login-form__google-btn"
-          onClick={handleGoogleLogin}
-          disabled={loading}
-        >
-          <svg className="google-icon" viewBox="0 0 24 24" width="20" height="20">
-            <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114A5.57 5.57 0 0 1 8.35 13a5.57 5.57 0 0 1 5.64-5.514c1.458 0 2.78.502 3.82 1.332l3.1-3.1C18.847 3.738 15.65 2.5 12.24 2.5a10.5 10.5 0 0 0-10.5 10.5 10.5 10.5 0 0 0 10.5 10.5c5.786 0 9.617-3.96 9.617-9.614a9.72 9.72 0 0 0-.117-1.6H12.24z"/>
-          </svg>
-          Tiếp tục với Google
-        </button>
       </div>
     </section>
   )
