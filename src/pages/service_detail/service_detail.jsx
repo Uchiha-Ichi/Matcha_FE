@@ -1259,9 +1259,42 @@ function ServiceDetail({ partnerConceptId }) {
                 <strong style={{ color: '#b24b2a', fontSize: 22 }}>{qrCountdown}</strong>
               </div>
               <div style={{ width: '100%', display: 'grid', gap: 10, textAlign: 'left', background: '#fbf9f6', border: '1px solid #eadfce', borderRadius: 16, padding: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><span style={{ color: '#7b6b5d' }}>Ngân hàng</span><strong>BIDV</strong></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><span style={{ color: '#7b6b5d' }}>Thụ hưởng</span><strong>Hoàng Huy Nhật</strong></div>
-                <div style={{ display: 'grid', gap: 4 }}><span style={{ color: '#7b6b5d' }}>Nội dung giao dịch</span><strong style={{ wordBreak: 'break-word' }}>{qrTransferContent}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={{ color: '#7b6b5d' }}>Ngân hàng</span>
+                  <strong>{qrPayment?.bankName || 'BIDV'}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={{ color: '#7b6b5d' }}>Số tài khoản</span>
+                  <strong 
+                    style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} 
+                    onClick={() => {
+                      if (qrPayment?.accountNumber) {
+                        navigator.clipboard.writeText(qrPayment.accountNumber);
+                        alert('Đã sao chép số tài khoản ảo!');
+                      }
+                    }}
+                    title="Bấm để sao chép"
+                  >
+                    {qrPayment?.accountNumber || '—'} 📋
+                  </strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={{ color: '#7b6b5d' }}>Thụ hưởng</span>
+                  <strong>{qrPayment?.accountName || 'Hoàng Huy Nhật'}</strong>
+                </div>
+                <div style={{ display: 'grid', gap: 4 }}>
+                  <span style={{ color: '#7b6b5d' }}>Nội dung giao dịch</span>
+                  <strong 
+                    style={{ wordBreak: 'break-word', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(qrTransferContent);
+                      alert('Đã sao chép nội dung chuyển khoản!');
+                    }}
+                    title="Bấm để sao chép"
+                  >
+                    {qrTransferContent} 📋
+                  </strong>
+                </div>
               </div>              <div style={{ display: 'flex', gap: 12, width: '100%' }}>
                 <button type="button" onClick={handleCloseQr} style={{ flex: 1, border: 0, borderRadius: 999, padding: '12px 16px', background: '#1f1713', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Đóng QR</button>
               </div>

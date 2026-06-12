@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
 import { getBookings, updateBookingStatus, getPromotions, applyBookingPromotion, createPaymentUrl, getPayment, closePaymentQr, getFeedbacks, createFeedback, uploadImage } from '../../utils/api.js'
@@ -407,7 +407,7 @@ function OrderHistory() {
       setPaymentAlert({
         status: paymentStatus,
         message: paymentStatus === 'success'
-          ? 'Đặt cọc / Thanh toán đơn hàng thành công qua VNPay! Ekip đã ghi nhận lịch chụp.'
+          ? 'Đặt cọc / Thanh toán đơn hàng thành công! Ekip đã ghi nhận lịch chụp.'
           : message || 'Thanh toán thất bại hoặc đã bị hủy.'
       })
       // Clear URL params so reload doesn't trigger alert again
@@ -951,9 +951,42 @@ function OrderHistory() {
               <strong style={{ color: '#b24b2a', fontSize: 22 }}>{qrCountdown}</strong>
             </div>
             <div style={{ marginTop: 16, display: 'grid', gap: 10, textAlign: 'left', background: '#fbf9f6', border: '1px solid #eadfce', borderRadius: 16, padding: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><span style={{ color: '#7b6b5d' }}>Ngân hàng</span><strong>BIDV</strong></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><span style={{ color: '#7b6b5d' }}>Thụ hưởng</span><strong>Hoàng Huy Nhật</strong></div>
-              <div style={{ display: 'grid', gap: 4 }}><span style={{ color: '#7b6b5d' }}>Nội dung giao dịch</span><strong style={{ wordBreak: 'break-word' }}>{qrTransferContent}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ color: '#7b6b5d' }}>Ngân hàng</span>
+                <strong>{qrPayment?.bankName || 'BIDV'}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ color: '#7b6b5d' }}>Số tài khoản</span>
+                <strong 
+                  style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} 
+                  onClick={() => {
+                    if (qrPayment?.accountNumber) {
+                      navigator.clipboard.writeText(qrPayment.accountNumber);
+                      alert('Đã sao chép số tài khoản ảo!');
+                    }
+                  }}
+                  title="Bấm để sao chép"
+                >
+                  {qrPayment?.accountNumber || '—'} 📋
+                </strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ color: '#7b6b5d' }}>Thụ hưởng</span>
+                <strong>{qrPayment?.accountName || 'Hoàng Huy Nhật'}</strong>
+              </div>
+              <div style={{ display: 'grid', gap: 4 }}>
+                <span style={{ color: '#7b6b5d' }}>Nội dung giao dịch</span>
+                <strong 
+                  style={{ wordBreak: 'break-word', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                  onClick={() => {
+                    navigator.clipboard.writeText(qrTransferContent);
+                    alert('Đã sao chép nội dung chuyển khoản!');
+                  }}
+                  title="Bấm để sao chép"
+                >
+                  {qrTransferContent} 📋
+                </strong>
+              </div>
             </div>            <div style={{ display: 'flex', gap: 12, marginTop: 22 }}>
               <button type="button" onClick={handleCloseQr} style={{ flex: 1, border: 0, borderRadius: 999, padding: '12px 16px', background: '#1f1713', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Đóng QR</button>
             </div>

@@ -675,9 +675,36 @@ function Cart() {
                 <strong>{qrCountdown}</strong>
               </div>
               <div className="payment-qr-bank-info">
-                <div><span>Ngân hàng</span><strong>BIDV</strong></div>
-                <div><span>Thụ hưởng</span><strong>Hoàng Huy Nhật</strong></div>
-                <div><span>Nội dung giao dịch</span><strong>{qrTransferContent}</strong></div>
+                <div><span>Ngân hàng</span><strong>{qrPayment?.bankName || 'BIDV'}</strong></div>
+                <div>
+                  <span>Số tài khoản</span>
+                  <strong 
+                    style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    onClick={() => {
+                      if (qrPayment?.accountNumber) {
+                        navigator.clipboard.writeText(qrPayment.accountNumber);
+                        alert('Đã sao chép số tài khoản ảo!');
+                      }
+                    }}
+                    title="Bấm để sao chép"
+                  >
+                    {qrPayment?.accountNumber || '—'} 📋
+                  </strong>
+                </div>
+                <div><span>Thụ hưởng</span><strong>{qrPayment?.accountName || 'Hoàng Huy Nhật'}</strong></div>
+                <div style={{ display: 'grid', gap: '4px' }}>
+                  <span>Nội dung giao dịch</span>
+                  <strong 
+                    style={{ wordBreak: 'break-word', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(qrTransferContent);
+                      alert('Đã sao chép nội dung chuyển khoản!');
+                    }}
+                    title="Bấm để sao chép"
+                  >
+                    {qrTransferContent} 📋
+                  </strong>
+                </div>
               </div>              <div className="payment-qr-actions payment-qr-actions--single">
                 <button type="button" onClick={handleCloseQr}>Đóng QR</button>
               </div>
