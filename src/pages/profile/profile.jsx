@@ -190,6 +190,7 @@ function Profile() {
           cover:
             'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1600&q=80',
           bio: extra.bio || 'Chưa cập nhật giới thiệu bản thân.',
+          googleId: me.google_id || '',
           stats: {
             bookings: totalBookings,
             completed: completedBookings,
@@ -559,9 +560,11 @@ function Profile() {
                 <input type="checkbox" defaultChecked />
                 <span>Nhận tin nhắn từ ekip đã đặt lịch</span>
               </label>
-              <a href="/forgot-password" onClick={(event) => navigate(event, '/forgot-password')}>
-                Đổi mật khẩu
-              </a>
+              {!profile.googleId && (
+                <a href="/forgot-password" onClick={(event) => navigate(event, '/forgot-password')}>
+                  Đổi mật khẩu
+                </a>
+              )}
             </article>
           </section>
         </div>

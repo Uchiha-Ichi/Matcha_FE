@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { setAuthUser, getAuthUser } from '../../utils/auth.js'
 import { signIn, signUp, updateMe, getMe, getMyPartner, sendSignUpOtp } from '../../utils/api.js'
+import { API_BASE_URL } from '../../utils/config.js'
 import './login.css'
 
 const tabs = [
@@ -53,6 +54,62 @@ function Login({ closeHref = '/' }) {
   const [otpSent, setOtpSent] = useState(false)
   const [otpLoading, setOtpLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const accessToken = params.get('accessToken')
+    const refreshToken = params.get('refreshToken')
+    if (accessToken && refreshToken) {
+      window.history.replaceState({}, document.title, window.location.pathname)
+      
+      const processGoogleLogin = async () => {
+        setLoading(true)
+        setError(null)
+        try {
+          setAuthUser({ accessToken, refreshToken })
+          const me = await getMe()
+          const userData = {
+            id: me.id,
+            fullName: me.full_name || me.email.split('@')[0],
+            email: me.email,
+            phone: me.phone || '',
+            role: me.role?.name || 'Customer',
+            avatar: me.avatar_src || `https://i.pravatar.cc/100?u=matcha-${me.id}`,
+            accessToken,
+            refreshToken,
+          }
+          setAuthUser(userData)
+          
+          if (userData.role === 'Partner') {
+            try {
+              const partnerProfile = await getMyPartner()
+              if (partnerProfile) {
+                navigateTo('/partner-dashboard')
+              } else {
+                navigateTo('/partner-setup')
+              }
+            } catch {
+              navigateTo('/partner-setup')
+            }
+          } else if (userData.role === 'Customer') {
+            navigateTo('/')
+          } else {
+            navigateTo('/admin-dashboard')
+          }
+        } catch (err) {
+          setError(getErrorText(err.message) || 'Lỗi đăng nhập Google. Vui lòng thử lại.')
+        } finally {
+          setLoading(false)
+        }
+      }
+      processGoogleLogin()
+    }
+  }, [])
+
+  const handleGoogleLogin = () => {
+    setLoading(true)
+    window.location.href = `${API_BASE_URL}/auth/signin/google`
+  }
 
   const isRegister = activeTab === 'register'
   const isPartner = activeRole === 'partner'
@@ -421,6 +478,22 @@ function Login({ closeHref = '/' }) {
             {loading ? 'Đang xử lý...' : isRegister ? 'Tạo tài khoản' : 'Đăng nhập'}
           </button>
         </form>
+
+        <div className="login-form__divider">
+          <span>hoặc</span>
+        </div>
+
+        <button
+          type="button"
+          className="login-form__google-btn"
+          onClick={handleGoogleLogin}
+          disabled={loading}
+        >
+          <svg className="google-icon" viewBox="0 0 24 24" width="20" height="20">
+            <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114A5.57 5.57 0 0 1 8.35 13a5.57 5.57 0 0 1 5.64-5.514c1.458 0 2.78.502 3.82 1.332l3.1-3.1C18.847 3.738 15.65 2.5 12.24 2.5a10.5 10.5 0 0 0-10.5 10.5 10.5 10.5 0 0 0 10.5 10.5c5.786 0 9.617-3.96 9.617-9.614a9.72 9.72 0 0 0-.117-1.6H12.24z"/>
+          </svg>
+          Tiếp tục với Google
+        </button>
       </div>
     </section>
   )
