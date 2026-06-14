@@ -17,7 +17,21 @@ const roles = [
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const phonePattern = /^(0|\+84)\d{9}$/
 
-const getErrorText = (message) => Array.isArray(message) ? message.join('\n') : message
+const translateError = (msg) => {
+  if (!msg) return msg
+  const msgLower = msg.toString().toLowerCase().trim()
+  if (msgLower === 'invalid credentials') {
+    return 'Tài khoản hoặc mật khẩu không chính xác'
+  }
+  return msg
+}
+
+const getErrorText = (message) => {
+  if (Array.isArray(message)) {
+    return message.map(translateError).join('\n')
+  }
+  return translateError(message)
+}
 
 const getRegisterValidationError = ({ fullName, email, phone, password, confirmPassword, acceptedTerms, otp }) => {
   if (!fullName || fullName.trim().length < 2) return 'Vui lòng nhập họ tên tối thiểu 2 ký tự'
