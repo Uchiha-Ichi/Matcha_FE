@@ -359,8 +359,36 @@ function Chat() {
                     onClick={() => setActiveConversationId(conversation.id)}
                   >
                     <img src={partner.avatar} alt={partner.name} />
-                    <div style={{ flex: 1, textAlign: 'left' }}>
-                      <strong>{partner.name}</strong>
+                    <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <strong>{partner.name}</strong>
+                        {conversation.booking && (
+                          <span style={{
+                            fontSize: '10px',
+                            background: '#f2eae1',
+                            color: '#b24b2a',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            fontWeight: '600'
+                          }}>
+                            MTC-{String(conversation.booking.id).padStart(5, '0')}
+                          </span>
+                        )}
+                      </div>
+                      {conversation.booking?.details?.[0]?.partner_concept?.concept?.name && (
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#8c7e74',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: '180px',
+                          marginTop: '2px',
+                          marginBottom: '2px'
+                        }}>
+                          Dịch vụ: {conversation.booking.details[0].partner_concept.concept.name}
+                        </div>
+                      )}
                       <p style={{
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
