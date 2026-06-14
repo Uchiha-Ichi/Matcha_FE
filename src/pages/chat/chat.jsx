@@ -360,18 +360,45 @@ function Chat() {
                   >
                     <img src={partner.avatar} alt={partner.name} />
                     <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        <strong>{partner.name}</strong>
-                        {conversation.booking && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        flexWrap: 'wrap',
+                        paddingRight: '35px'
+                      }}>
+                        <strong style={{
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: '130px',
+                          display: 'block'
+                        }} title={partner.name}>
+                          {partner.name}
+                        </strong>
+                        {conversation.booking ? (
                           <span style={{
                             fontSize: '10px',
                             background: '#f2eae1',
                             color: '#b24b2a',
                             padding: '1px 5px',
                             borderRadius: '4px',
-                            fontWeight: '600'
+                            fontWeight: '600',
+                            whiteSpace: 'nowrap'
                           }}>
                             MTC-{String(conversation.booking.id).padStart(5, '0')}
+                          </span>
+                        ) : (
+                          <span style={{
+                            fontSize: '10px',
+                            background: '#f1ebe3',
+                            color: '#7b6b5d',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            fontWeight: '600',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            Tư vấn
                           </span>
                         )}
                       </div>
