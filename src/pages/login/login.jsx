@@ -205,7 +205,7 @@ function Login({ closeHref = '/' }) {
         await updateMe(updateDto)
       } else {
         // Sign in
-        authData = await signIn(email, password)
+        authData = await signIn(emailVal, password)
 
         // Save token temporarily so getMe can use it via Authorization header
         if (authData?.accessToken) {
