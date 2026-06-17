@@ -58,6 +58,11 @@ function PartnerSetup() {
   const [globalError, setGlobalError] = useState(null)
   const fileInputRef = useRef(null)
 
+  // GPS state
+  const [gpsStatus, setGpsStatus] = useState(null) // null | 'loading' | 'success' | 'error'
+  const [gpsError, setGpsError] = useState(null)
+  const [locationGps, setLocationGps] = useState(null) // "POINT(lng lat)" hoặc null
+
   // Form state
   const [form, setForm] = useState({
     band_name: '',
@@ -146,19 +151,59 @@ function PartnerSetup() {
     reader.readAsDataURL(file)
   }
 
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsStatus('error')
+      setGpsError('Trình duyệt không hỗ trợ định vị GPS.')
+      return
+    }
+    setGpsStatus('loading')
+    setGpsError(null)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords
+        setLocationGps(`POINT(${longitude} ${latitude})`)
+        setGpsStatus('success')
+      },
+      (err) => {
+        setGpsStatus('error')
+        setGpsError(
+          err.code === 1
+            ? 'Bạn đã từ chối cấp quyền vị trí. Vui lòng bật trong cài đặt trình duyệt.'
+            : 'Không lấy được vị trí, vui lòng thử lại.'
+        )
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
+
   const handleSubmit = async () => {
     if (!authUser?.id) return
     setSaving(true)
     setGlobalError(null)
 
     const cityVal = form.location_city || form.location_name.trim() || 'Hà Nội'
-    // Build payload — location_gps là bắt buộc backend, set default nếu không có
+
+    // Ưu tiên GPS thật, fallback về tọa độ trung tâm thành phố
+    const cityCoords = {
+      'Hà Nội': 'POINT(105.8342 21.0245)',
+      'TP. Hồ Chí Minh': 'POINT(106.6297 10.8231)',
+      'Đà Nẵng': 'POINT(108.2022 16.0544)',
+      'Hải Phòng': 'POINT(106.6881 20.8449)',
+      'Cần Thơ': 'POINT(105.7469 10.0452)',
+      'Huế': 'POINT(107.5905 16.4637)',
+      'Nha Trang': 'POINT(109.1967 12.2388)',
+      'Đà Lạt': 'POINT(108.4583 11.9404)',
+      'Vũng Tàu': 'POINT(107.0843 10.3460)',
+    }
+    const fallbackGps = cityCoords[cityVal] ?? 'POINT(105.8342 21.0245)'
+
     const payload = {
       user_id: authUser.id,
       band_name: form.band_name.trim(),
       categories_id: form.categories_id ? Number(form.categories_id) : undefined,
       description: form.description.trim(),
-      location_gps: 'POINT(105.8342 21.0245)', // default Hà Nội, backend yêu cầu
+      location_gps: locationGps ?? fallbackGps,
       location_name: cityVal,
       cover_image: form.cover_image || undefined,
       is_active: true,
@@ -337,6 +382,40 @@ function PartnerSetup() {
                     />
                     {errors.location_name && <p className="ps-field__error">{errors.location_name}</p>}
                     <p className="ps-field__hint">Dùng để khách hàng biết bạn hoạt động ở đâu</p>
+                  </div>
+
+                  {/* GPS Location */}
+                  <div className="ps-field ps-field--full">
+                    <label>Vị trí GPS <span style={{ color: '#9b8a7b', fontWeight: 400 }}>(khuyến nghị)</span></label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className={`ps-btn ${
+                          gpsStatus === 'success' ? 'ps-btn--ghost' : 'ps-btn--primary'
+                        }`}
+                        onClick={handleGetLocation}
+                        disabled={gpsStatus === 'loading'}
+                        style={{ minWidth: 200 }}
+                      >
+                        {gpsStatus === 'loading' && <span className="ps-btn__spinner" />}
+                        {gpsStatus === 'loading' && ' Đang lấy vị trí...'}
+                        {gpsStatus === 'success' && '✓ Đã lấy vị trí thành công'}
+                        {gpsStatus === 'error' && '🔄 Thử lại'}
+                        {!gpsStatus && '📍 Lấy vị trí hiện tại'}
+                      </button>
+                      {gpsStatus === 'success' && locationGps && (
+                        <span style={{ fontSize: 12, color: '#5a8a5a', fontFamily: 'monospace' }}>
+                          {locationGps}
+                        </span>
+                      )}
+                    </div>
+                    {gpsStatus === 'error' && gpsError && (
+                      <p className="ps-field__error" style={{ marginTop: 8 }}>{gpsError}</p>
+                    )}
+                    <p className="ps-field__hint">
+                      Cho phép Matcha xác định chính xác studio của bạn trên bản đồ,
+                      giúp khách hàng tìm kiếm theo khu vực gần họ.
+                    </p>
                   </div>
                 </div>
 

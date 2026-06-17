@@ -132,6 +132,10 @@ export const updatePartner = (id, dto) =>
   apiFetch(`/partners/${id}`, { method: 'PATCH', body: JSON.stringify(dto) })
 export const getPartnerCalendar = (id) => apiFetch(`/partners/${id}/calendar`)
 export const getMyPartner = () => apiFetch('/partners/me')
+export const searchPartnersNearby = (latitude, longitude, radiusKm = 10) => {
+  const params = new URLSearchParams({ latitude, longitude, radius_km: radiusKm })
+  return apiFetch(`/partners/search/nearby?${params}`)
+}
 
 // ── Concepts ──────────────────────────────────────────────────────────────────
 export const getConcepts = () => apiFetch('/concepts')

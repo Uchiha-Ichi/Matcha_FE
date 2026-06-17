@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getMe, updateMe, getBookings, uploadImage, getMyPartner } from '../../utils/api.js'
+import { getMe, updateMe, getBookings, uploadImage, getMyPartner, updatePartner } from '../../utils/api.js'
 import { PartnerDashboardHeader } from '../partner_dashboard/partner_dashboard.jsx'
 import { getAuthUser, setAuthUser } from '../../utils/auth.js'
 import './profile.css'
@@ -115,6 +115,11 @@ function Profile() {
   const [avatarStatus, setAvatarStatus] = useState(null) // 'uploading' | 'success' | 'error' | null
   const [avatarError, setAvatarError] = useState(null)
 
+  // GPS update state (chỉ dùng cho Partner)
+  const [gpsStatus, setGpsStatus] = useState(null) // null | 'loading' | 'success' | 'error'
+  const [gpsError, setGpsError] = useState(null)
+  const [currentGps, setCurrentGps] = useState(null) // hiển thị GPS hiện tại của partner
+
   useEffect(() => {
     if (!authUserId) {
       window.history.pushState({}, '', '/login')
@@ -137,6 +142,13 @@ function Profile() {
         if (cancelled) return
 
         setPartnerProfile(myPartner)
+        // Lưu GPS hiện tại của partner để hiển thị
+        if (myPartner?.location_gps) {
+          setCurrentGps(typeof myPartner.location_gps === 'string'
+            ? myPartner.location_gps
+            : `POINT(${myPartner.location_gps.x ?? myPartner.location_gps.longitude} ${myPartner.location_gps.y ?? myPartner.location_gps.latitude})`
+          )
+        }
 
         // Calculate stats
         const totalBookings = bookingsList.length
@@ -258,6 +270,45 @@ function Profile() {
       setSaveStatus('error')
       setTimeout(() => setSaveStatus(null), 3000)
     }
+  }
+
+  const handleUpdateGps = () => {
+    if (!navigator.geolocation) {
+      setGpsStatus('error')
+      setGpsError('Trình duyệt không hỗ trợ định vị GPS.')
+      return
+    }
+    if (!partnerProfile?.id) {
+      setGpsStatus('error')
+      setGpsError('Không tìm thấy hồ sơ partner.')
+      return
+    }
+    setGpsStatus('loading')
+    setGpsError(null)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        const newGps = `POINT(${longitude} ${latitude})`
+        try {
+          await updatePartner(partnerProfile.id, { location_gps: newGps })
+          setCurrentGps(newGps)
+          setGpsStatus('success')
+          setTimeout(() => setGpsStatus(null), 4000)
+        } catch (err) {
+          setGpsStatus('error')
+          setGpsError('Cập nhật thất bại: ' + err.message)
+        }
+      },
+      (err) => {
+        setGpsStatus('error')
+        setGpsError(
+          err.code === 1
+            ? 'Bạn đã từ chối cấp quyền vị trí. Vui lòng bật trong cài đặt trình duyệt.'
+            : 'Không lấy được vị trí, vui lòng thử lại.'
+        )
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
   }
 
   const handleAvatarFileChange = async (event) => {
@@ -506,6 +557,69 @@ function Profile() {
               )}
             </div>
           </section>
+
+          {/* ── GPS Section (chỉ hiển thị với Partner) ── */}
+          {isPartnerProfile && partnerProfile && (
+            <section className="profile-section">
+              <div className="profile-section__heading">
+                <div>
+                  <span>VỊ TRÍ STUDIO</span>
+                  <h2>Vị trí GPS</h2>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {currentGps && (
+                  <p style={{ fontSize: 13, color: '#6f6257', fontFamily: 'monospace', background: '#f5f0eb', padding: '8px 14px', borderRadius: 10 }}>
+                    📍 Vị trí hiện tại: {currentGps}
+                  </p>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handleUpdateGps}
+                    disabled={gpsStatus === 'loading'}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '10px 20px',
+                      background: gpsStatus === 'success' ? '#2d6a2d' : '#1f1713',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 999,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: gpsStatus === 'loading' ? 'not-allowed' : 'pointer',
+                      opacity: gpsStatus === 'loading' ? 0.7 : 1,
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {gpsStatus === 'loading' && <span style={{ width: 14, height: 14, border: '2px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />}
+                    {gpsStatus === 'loading' ? 'Đang lấy vị trí...' :
+                     gpsStatus === 'success' ? '✓ Đã cập nhật vị trí' :
+                     '📍 Cập nhật vị trí GPS'}
+                  </button>
+
+                  {gpsStatus === 'success' && currentGps && (
+                    <span style={{ fontSize: 12, color: '#5a8a5a', fontFamily: 'monospace' }}>
+                      {currentGps}
+                    </span>
+                  )}
+                </div>
+
+                {gpsStatus === 'error' && gpsError && (
+                  <p style={{ fontSize: 13, color: '#c0392b', marginTop: 4 }}>{gpsError}</p>
+                )}
+
+                <p style={{ fontSize: 13, color: '#9b8a7b', lineHeight: 1.5 }}>
+                  Vị trí GPS giúp khách hàng tìm thấy studio của bạn khi họ tìm kiếm theo khu vực gần đó.
+                  Hãy cập nhật mỗi khi bạn thay đổi địa điểm hoạt động.
+                </p>
+              </div>
+            </section>
+          )}
 
           <section className="profile-two-column">
             {profile.recentBooking ? (
