@@ -3,6 +3,7 @@ import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
 import { getCart, removeCartItem, checkoutCart, validatePromoCode, getPromotions, createPaymentUrl, getPayment, closePaymentQr } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
+import { extractCityOrProvince } from '../../utils/helpers.js'
 import './cart.css'
 
 const imageFallbacks = [
@@ -83,6 +84,7 @@ function Cart() {
   const [cartData, setCartData] = useState(null)       // raw cart from API
   const [selected, setSelected] = useState(new Set())  // Set of cart item IDs
   const [loading, setLoading] = useState(true)
+  const [autoRemovedCount, setAutoRemovedCount] = useState(0)
   const [error, setError] = useState(null)
   const [checkingOut, setCheckingOut] = useState(false)
   const [checkoutMsg, setCheckoutMsg] = useState(null)
@@ -115,7 +117,7 @@ function Cart() {
         serviceName: concept.name ?? 'Dịch vụ Matcha',
         partnerName: partner.band_name ?? 'Matcha Studio',
         category: concept.name ?? '—',
-        location: partner.location_name ?? 'Việt Nam',
+        location: extractCityOrProvince(partner.location_name),
         duration: pc.time ?? '—',
         price: Number(pc.price ?? 0),
         image: pc.image_des ?? imageFallbacks[index % imageFallbacks.length],
@@ -148,6 +150,44 @@ function Cart() {
     loadCart()
     setBookingTimes(getBookingTimes())
   }, [])
+
+  useEffect(() => {
+    if (loading || !cartData?.items) return
+
+    const now = new Date()
+    const itemsToRemove = []
+
+    cartData.items.forEach((item) => {
+      const pcId = item.partner_concept?.id
+      const bt = bookingTimes[pcId]
+      if (bt && (bt.date || bt.time)) {
+        const btDate = bt.iso ? new Date(bt.iso) : new Date(`${bt.date}T${bt.time}:00`)
+        if (!isNaN(btDate.getTime()) && btDate < now) {
+          itemsToRemove.push({ id: item.id, pcId })
+        }
+      }
+    })
+
+    if (itemsToRemove.length > 0) {
+      const cleanExpired = async () => {
+        try {
+          const stored = getBookingTimes()
+          for (const item of itemsToRemove) {
+            await removeCartItem(item.id)
+            delete stored[item.pcId]
+          }
+          localStorage.setItem('matcha_booking_times', JSON.stringify(stored))
+          setBookingTimes({ ...stored })
+          setAutoRemovedCount((prev) => prev + itemsToRemove.length)
+          window.dispatchEvent(new CustomEvent('matcha-cart-change'))
+          await loadCart()
+        } catch (err) {
+          console.error('Lỗi khi tự động xóa lịch hết hạn:', err)
+        }
+      }
+      cleanExpired()
+    }
+  }, [cartData, bookingTimes, loading])
 
   const selectedItems = cartItems.filter((item) => selected.has(item.id))
   const allSelected = cartItems.length > 0 && selectedItems.length === cartItems.length
@@ -451,6 +491,37 @@ function Cart() {
                 <span>Chọn tất cả</span>
               </label>
               <p>{selectedItems.length} dịch vụ đang được chọn</p>
+            </div>
+          )}
+
+          {autoRemovedCount > 0 && (
+            <div className="cart-warning-alert" style={{
+              background: '#fff3cd',
+              border: '1px solid #ffeeba',
+              color: '#856404',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              marginBottom: '16px',
+              fontWeight: '600',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span>⚠️ Một số gói dịch vụ trong giỏ hàng đã quá thời gian dự kiến chụp nên đã được tự động loại bỏ.</span>
+              <button 
+                onClick={() => setAutoRemovedCount(0)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#856404',
+                  cursor: 'pointer',
+                  fontSize: '18px',
+                  lineHeight: '1',
+                  fontWeight: 'bold'
+                }}
+              >
+                ×
+              </button>
             </div>
           )}
 

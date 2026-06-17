@@ -3,6 +3,7 @@ import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
 import { getBookings, updateBookingStatus, getPromotions, applyBookingPromotion, createPaymentUrl, getPayment, closePaymentQr, getFeedbacks, createFeedback, uploadImage } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
+import { extractCityOrProvince } from '../../utils/helpers.js'
 import './order_history.css'
 
 const statusMeta = {
@@ -104,7 +105,7 @@ function normaliseBooking(booking, index) {
     serviceName: concept.name ?? 'Dịch vụ Matcha',
     partnerName: partner.band_name ?? 'Matcha Partner',
     partnerId: partner.id,
-    location: partner.location_name ?? '- ',
+    location: extractCityOrProvince(partner.location_name),
     bookingTime: booking.booking_time,
     price: grossPrice,
     discount,
