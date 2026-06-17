@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import AboutMatcha from './pages/about_matcha/about_matcha.jsx'
 import AdminDashboard from './pages/admin_dashboard/admin_dashboard.jsx'
 import AiIdeaResult from './pages/ai_idea_result/ai_idea_result.jsx'
@@ -22,9 +22,9 @@ import { getAuthUser } from './utils/auth.js'
 
 const getCurrentRoute = () => window.location.pathname || '/'
 
-function extractServiceDetailId(path) {
-  const match = path.match(/^\/service-detail\/(\d+)$/)
-  return match ? Number(match[1]) : null
+function extractServiceDetailSlugOrId(path) {
+  const match = path.match(/^\/service-detail\/([^/]+)$/)
+  return match ? match[1] : null
 }
 
 function extractBookingId(path) {
@@ -78,9 +78,9 @@ function App() {
     return <ForgotPassword />
   }
 
-  const serviceDetailId = extractServiceDetailId(route)
-  if (serviceDetailId !== null) {
-    return <ServiceDetail partnerConceptId={serviceDetailId} />
+  const serviceDetailParam = extractServiceDetailSlugOrId(route)
+  if (serviceDetailParam !== null) {
+    return <ServiceDetail partnerConceptId={serviceDetailParam} />
   }
   if (route === '/service-detail') {
     return <ServiceDetail />

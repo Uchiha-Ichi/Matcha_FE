@@ -116,6 +116,7 @@ function Homepage() {
             partnerId: partner?.id || pc.partner_id || pc.partner?.id,
             categoryName,
             conceptName,
+            slug: pc.slug,
             searchableText: normalizeText([
               title,
               categoryName,
@@ -374,13 +375,13 @@ function Homepage() {
                     role="link"
                     tabIndex={0}
                     onClick={(event) =>
-                      navigate(event, `/service-detail/${service.partnerConceptId}`, {
+                      navigate(event, `/service-detail/${service.slug || service.partnerConceptId}`, {
                         partnerConceptId: service.partnerConceptId,
                       })
                     }
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
-                        navigate(event, `/service-detail/${service.partnerConceptId}`, {
+                        navigate(event, `/service-detail/${service.slug || service.partnerConceptId}`, {
                           partnerConceptId: service.partnerConceptId,
                         })
                       }

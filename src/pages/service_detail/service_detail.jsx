@@ -245,7 +245,7 @@ function ServiceDetail({ partnerConceptId }) {
           if (!cancelled) {
             const filtered = (allFeedbacks ?? []).filter(
               (fb) =>
-                fb.booking_detail?.partner_concept?.id === partnerConceptId,
+                fb.booking_detail?.partner_concept?.id === pc.id,
             )
             setReviews(filtered)
           }
@@ -300,11 +300,11 @@ function ServiceDetail({ partnerConceptId }) {
 
     setCartStatus('adding')
     try {
-      await addCartItem(partnerConceptId, 1)
+      await addCartItem(partnerConcept?.id || partnerConceptId, 1)
       // Lưu thông tin booking time vào localStorage theo partnerConceptId
       const bookingTimeIso = new Date(`${bookingDate}T${bookingTime}:00`).toISOString()
       const stored = JSON.parse(localStorage.getItem('matcha_booking_times') ?? '{}')
-      stored[partnerConceptId] = {
+      stored[partnerConcept?.id || partnerConceptId] = {
         date: bookingDate,
         time: bookingTime,
         endTime: bookingEndTime,
@@ -389,7 +389,7 @@ function ServiceDetail({ partnerConceptId }) {
     setPaymentResult(null)
     try {
       await clearCart()
-      await addCartItem(partnerConceptId, 1)
+      await addCartItem(partnerConcept?.id || partnerConceptId, 1)
 
       const bookingTimeIso = new Date(`${bookingDate}T${bookingTime}:00`).toISOString()
       const bookings = await checkoutCart({ 
@@ -586,7 +586,7 @@ function ServiceDetail({ partnerConceptId }) {
 
   // Avatar
   const avatar = partner?.images?.find(i => i.is_primary)?.image_src
-    ?? `https://i.pravatar.cc/160?u=partner-${partner?.id ?? partnerConceptId}`
+    ?? `https://i.pravatar.cc/160?u=partner-${partner?.id ?? partnerConcept?.id ?? partnerConceptId}`
 
   // Portfolio images from partner concept images
   const portfolioImages =

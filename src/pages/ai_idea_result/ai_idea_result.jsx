@@ -364,8 +364,8 @@ function AiIdeaResult() {
                 <div className="ai-team-card__bottom">
                   <strong>{formatPrice(member.price)} đ</strong>
                   <a
-                    href={`/service-detail/${member.partnerConceptId}`}
-                    onClick={(event) => navigate(event, `/service-detail/${member.partnerConceptId}`)}
+                    href={`/service-detail/${member.slug || member.partnerConceptId}`}
+                    onClick={(event) => navigate(event, `/service-detail/${member.slug || member.partnerConceptId}`)}
                   >
                     Xem chi tiết
                   </a>
