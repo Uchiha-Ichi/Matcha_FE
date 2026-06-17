@@ -4,6 +4,7 @@ import Header from '../../components/Header.jsx'
 import { getMe, updateMe, getBookings, uploadImage, getMyPartner, updatePartner } from '../../utils/api.js'
 import { PartnerDashboardHeader } from '../partner_dashboard/partner_dashboard.jsx'
 import { getAuthUser, setAuthUser } from '../../utils/auth.js'
+import LocationSearch from '../../components/LocationSearch.jsx'
 import './profile.css'
 
 const navigate = (event, path) => {
@@ -564,58 +565,51 @@ function Profile() {
               <div className="profile-section__heading">
                 <div>
                   <span>VỊ TRÍ STUDIO</span>
-                  <h2>Vị trí GPS</h2>
+                  <h2>Vị trí studio</h2>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
+                <LocationSearch
+                  value={partnerProfile?.location_name || ''}
+                  placeholder="Tìm địa chỉ mới... VD: Quận Tây Hồ, Hà Nội"
+                  onChange={async (name, gps) => {
+                    setGpsStatus('loading')
+                    setGpsError(null)
+                    try {
+                      await updatePartner(partnerProfile.id, {
+                        location_gps: gps,
+                        location_name: name,
+                      })
+                      setCurrentGps(gps)
+                      setPartnerProfile(p => ({ ...p, location_name: name, location_gps: gps }))
+                      setGpsStatus('success')
+                      setTimeout(() => setGpsStatus(null), 3000)
+                    } catch (err) {
+                      setGpsStatus('error')
+                      setGpsError('Cập nhật thất bại: ' + err.message)
+                    }
+                  }}
+                />
+
+                {gpsStatus === 'loading' && (
+                  <p style={{ fontSize: 13, color: '#9b8a7b' }}>⏳ Đang lưu vị trí...</p>
+                )}
+                {gpsStatus === 'success' && (
+                  <p style={{ fontSize: 13, color: '#2d6a2d' }}>✓ Đã cập nhật vị trí thành công</p>
+                )}
+                {gpsStatus === 'error' && gpsError && (
+                  <p style={{ fontSize: 13, color: '#c0392b' }}>{gpsError}</p>
+                )}
+
                 {currentGps && (
-                  <p style={{ fontSize: 13, color: '#6f6257', fontFamily: 'monospace', background: '#f5f0eb', padding: '8px 14px', borderRadius: 10 }}>
-                    📍 Vị trí hiện tại: {currentGps}
+                  <p style={{ fontSize: 12, color: '#9b8a7b', fontFamily: 'monospace', background: '#f5f0eb', padding: '6px 12px', borderRadius: 8 }}>
+                    GPS: {currentGps}
                   </p>
                 )}
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={handleUpdateGps}
-                    disabled={gpsStatus === 'loading'}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '10px 20px',
-                      background: gpsStatus === 'success' ? '#2d6a2d' : '#1f1713',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 999,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: gpsStatus === 'loading' ? 'not-allowed' : 'pointer',
-                      opacity: gpsStatus === 'loading' ? 0.7 : 1,
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    {gpsStatus === 'loading' && <span style={{ width: 14, height: 14, border: '2px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />}
-                    {gpsStatus === 'loading' ? 'Đang lấy vị trí...' :
-                     gpsStatus === 'success' ? '✓ Đã cập nhật vị trí' :
-                     '📍 Cập nhật vị trí GPS'}
-                  </button>
-
-                  {gpsStatus === 'success' && currentGps && (
-                    <span style={{ fontSize: 12, color: '#5a8a5a', fontFamily: 'monospace' }}>
-                      {currentGps}
-                    </span>
-                  )}
-                </div>
-
-                {gpsStatus === 'error' && gpsError && (
-                  <p style={{ fontSize: 13, color: '#c0392b', marginTop: 4 }}>{gpsError}</p>
-                )}
-
                 <p style={{ fontSize: 13, color: '#9b8a7b', lineHeight: 1.5 }}>
-                  Vị trí GPS giúp khách hàng tìm thấy studio của bạn khi họ tìm kiếm theo khu vực gần đó.
-                  Hãy cập nhật mỗi khi bạn thay đổi địa điểm hoạt động.
+                  Gõ địa chỉ và chọn từ gợi ý — vị trí sẽ được lưu ngay và giúp khách hàng tìm thấy studio của bạn.
                 </p>
               </div>
             </section>

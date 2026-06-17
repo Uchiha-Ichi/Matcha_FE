@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Header from '../../components/Header.jsx'
+import LocationSearch from '../../components/LocationSearch.jsx'
 import { getAuthUser } from '../../utils/auth.js'
 import { getCategories, getMyPartner, createPartner, updatePartner } from '../../utils/api.js'
 import './partner_setup.css'
@@ -68,7 +69,6 @@ function PartnerSetup() {
     band_name: '',
     categories_id: '',
     location_name: '',
-    location_city: '',
     description: '',
     cover_image: '',
     cover_image_name: '',
@@ -95,11 +95,17 @@ function PartnerSetup() {
             band_name: mine.band_name ?? '',
             categories_id: mine.categories_id ?? mine.category?.id ?? active[0]?.id ?? '',
             location_name: mine.location_name ?? '',
-            location_city: mine.location_name ?? '',
             description: mine.description ?? '',
             cover_image: mine.cover_image ?? '',
             cover_image_name: mine.cover_image ? 'Ảnh bìa hiện tại' : '',
           })
+          if (mine.location_gps) {
+            setLocationGps(
+              typeof mine.location_gps === 'string'
+                ? mine.location_gps
+                : `POINT(${mine.location_gps.x ?? mine.location_gps.longitude} ${mine.location_gps.y ?? mine.location_gps.latitude})`
+            )
+          }
         } else if (active.length > 0) {
           set('categories_id', active[0].id)
         }
@@ -182,12 +188,13 @@ function PartnerSetup() {
     setSaving(true)
     setGlobalError(null)
 
-    const cityVal = form.location_city || form.location_name.trim() || 'Hà Nội'
+    const locationVal = form.location_name.trim() || 'Hà Nội'
 
-    // Ưu tiên GPS thật, fallback về tọa độ trung tâm thành phố
+    // Ưu tiên GPS thật, fallback về tọa độ trung tâm thành phố dựa trên locationVal
     const cityCoords = {
+      'Hồ Chí Minh': 'POINT(106.6297 10.8231)',
+      'Sài Gòn': 'POINT(106.6297 10.8231)',
       'Hà Nội': 'POINT(105.8342 21.0245)',
-      'TP. Hồ Chí Minh': 'POINT(106.6297 10.8231)',
       'Đà Nẵng': 'POINT(108.2022 16.0544)',
       'Hải Phòng': 'POINT(106.6881 20.8449)',
       'Cần Thơ': 'POINT(105.7469 10.0452)',
@@ -196,7 +203,14 @@ function PartnerSetup() {
       'Đà Lạt': 'POINT(108.4583 11.9404)',
       'Vũng Tàu': 'POINT(107.0843 10.3460)',
     }
-    const fallbackGps = cityCoords[cityVal] ?? 'POINT(105.8342 21.0245)'
+    
+    let fallbackGps = 'POINT(105.8342 21.0245)' // Mặc định Hà Nội
+    for (const [cityName, coords] of Object.entries(cityCoords)) {
+      if (locationVal.toLowerCase().includes(cityName.toLowerCase())) {
+        fallbackGps = coords
+        break
+      }
+    }
 
     const payload = {
       user_id: authUser.id,
@@ -204,7 +218,7 @@ function PartnerSetup() {
       categories_id: form.categories_id ? Number(form.categories_id) : undefined,
       description: form.description.trim(),
       location_gps: locationGps ?? fallbackGps,
-      location_name: cityVal,
+      location_name: locationVal,
       cover_image: form.cover_image || undefined,
       is_active: true,
     }
@@ -274,7 +288,7 @@ function PartnerSetup() {
               <div className="ps-done__info">
                 <span className="ps-done__cat">{selectedCat?.name ?? '—'}</span>
                 <h2>{form.band_name}</h2>
-                <p>📍 {form.location_name || form.location_city}</p>
+                <p>📍 {form.location_name}</p>
               </div>
             </div>
           </div>
@@ -347,75 +361,29 @@ function PartnerSetup() {
                   </div>
 
 
-                  <div className="ps-field">
-                    <label htmlFor="ps-city">
-                      Thành phố hoạt động <span className="ps-required">*</span>
-                    </label>
-                    <div className="ps-select-wrap">
-                      <select
-                        id="ps-city"
-                        value={form.location_city}
-                        onChange={e => {
-                          set('location_city', e.target.value)
-                          set('location_name', e.target.value)
-                          clearErr('location_name')
-                        }}
-                      >
-                        <option value="">Chọn thành phố...</option>
-                        {VN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                      <span className="ps-select-arrow">▾</span>
-                    </div>
-                  </div>
-
+                  {/* Tìm kiếm địa chỉ — Nominatim (OpenStreetMap, free) */}
                   <div className="ps-field ps-field--full">
-                    <label htmlFor="ps-location">
-                      Địa chỉ / khu vực cụ thể <span className="ps-required">*</span>
+                    <label>
+                      Địa chỉ studio <span className="ps-required">*</span>
                     </label>
-                    <input
-                      id="ps-location"
-                      type="text"
-                      placeholder="VD: Quận Hoàn Kiếm, Hà Nội"
+                    <LocationSearch
                       value={form.location_name}
-                      onChange={e => { set('location_name', e.target.value); clearErr('location_name') }}
-                      className={errors.location_name ? 'ps-input--error' : ''}
+                      placeholder="Tìm địa chỉ... VD: Quận Hoàn Kiếm, Hà Nội"
+                      onChange={(name, gps) => {
+                        set('location_name', name)
+                        setLocationGps(gps)
+                        clearErr('location_name')
+                      }}
                     />
                     {errors.location_name && <p className="ps-field__error">{errors.location_name}</p>}
-                    <p className="ps-field__hint">Dùng để khách hàng biết bạn hoạt động ở đâu</p>
-                  </div>
-
-                  {/* GPS Location */}
-                  <div className="ps-field ps-field--full">
-                    <label>Vị trí GPS <span style={{ color: '#9b8a7b', fontWeight: 400 }}>(khuyến nghị)</span></label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        className={`ps-btn ${
-                          gpsStatus === 'success' ? 'ps-btn--ghost' : 'ps-btn--primary'
-                        }`}
-                        onClick={handleGetLocation}
-                        disabled={gpsStatus === 'loading'}
-                        style={{ minWidth: 200 }}
-                      >
-                        {gpsStatus === 'loading' && <span className="ps-btn__spinner" />}
-                        {gpsStatus === 'loading' && ' Đang lấy vị trí...'}
-                        {gpsStatus === 'success' && '✓ Đã lấy vị trí thành công'}
-                        {gpsStatus === 'error' && '🔄 Thử lại'}
-                        {!gpsStatus && '📍 Lấy vị trí hiện tại'}
-                      </button>
-                      {gpsStatus === 'success' && locationGps && (
-                        <span style={{ fontSize: 12, color: '#5a8a5a', fontFamily: 'monospace' }}>
-                          {locationGps}
-                        </span>
-                      )}
-                    </div>
-                    {gpsStatus === 'error' && gpsError && (
-                      <p className="ps-field__error" style={{ marginTop: 8 }}>{gpsError}</p>
-                    )}
                     <p className="ps-field__hint">
-                      Cho phép Matcha xác định chính xác studio của bạn trên bản đồ,
-                      giúp khách hàng tìm kiếm theo khu vực gần họ.
+                      Gõ địa chỉ studio của bạn và chọn từ gợi ý — tọa độ GPS sẽ được lưu tự động
                     </p>
+                    {locationGps && (
+                      <p style={{ fontSize: 12, color: '#5a8a5a', fontFamily: 'monospace', marginTop: 4 }}>
+                        ✓ GPS: {locationGps}
+                      </p>
+                    )}
                   </div>
                 </div>
 
