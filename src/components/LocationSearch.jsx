@@ -83,11 +83,11 @@ export default function LocationSearch({ value, onChange, placeholder = 'Tìm đ
           )
           if (!res.ok) throw new Error('Không thể giải mã tọa độ thành địa chỉ')
           const data = await res.json()
-          
+
           const parts = data.display_name.split(', ')
           const shortName = parts.slice(0, 4).join(', ')
           const gps = `POINT(${longitude} ${latitude})`
-          
+
           setQuery(shortName)
           onChange?.(shortName, gps)
         } catch (err) {
@@ -208,7 +208,7 @@ export default function LocationSearch({ value, onChange, placeholder = 'Tìm đ
               e.currentTarget.style.transform = 'translateY(-50%) scale(1)'
             }}
           >
-            🎯
+            📍
           </button>
         )}
       </div>

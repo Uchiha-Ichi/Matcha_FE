@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import './homepage.css'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
-import { getPartnerConcepts, getPartners, getConcepts, getCategories } from '../../utils/api.js'
+import { getPartnerConcepts, getPartners, getConcepts, getCategories, searchPartnersNearby } from '../../utils/api.js'
 
 const imageFallbacks = [
   'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=80',
@@ -60,6 +60,12 @@ function Homepage() {
   const [catalogSearchInput, setCatalogSearchInput] = useState('')
   const [catalogSearchTerm, setCatalogSearchTerm] = useState('')
 
+  // State for Nearby Filter
+  const [isNearbyFilterActive, setIsNearbyFilterActive] = useState(false)
+  const [nearbyPartnerIds, setNearbyPartnerIds] = useState(new Map())
+  const [nearbyLoading, setNearbyLoading] = useState(false)
+  const [nearbyError, setNearbyError] = useState(null)
+
   useEffect(() => {
     let cancelled = false
 
@@ -106,6 +112,7 @@ function Homepage() {
             rating: partner?.rating_avg > 0 ? Number(partner.rating_avg).toFixed(1) : '5.0',
             badge: badges[index % badges.length],
             partnerConceptId: pc.id,
+            partnerId: partner?.id || pc.partner_id || pc.partner?.id,
             categoryName,
             conceptName,
             searchableText: normalizeText([
@@ -140,13 +147,61 @@ function Homepage() {
     return () => { cancelled = true }
   }, [])
 
+  const formatDistance = (meters) => {
+    if (meters === undefined || meters === null) return ''
+    if (meters < 1000) return `Cách ${Math.round(meters)}m`
+    return `Cách ${(meters / 1000).toFixed(1)}km`
+  }
+
+  const handleNearbyToggle = () => {
+    if (isNearbyFilterActive) {
+      setIsNearbyFilterActive(false)
+      setNearbyError(null)
+      return
+    }
+
+    if (navigator.geolocation) {
+      setNearbyLoading(true)
+      setNearbyError(null)
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords
+          try {
+            const nearbyPartners = await searchPartnersNearby(latitude, longitude, 15) // Bán kính 15km
+            const nearbyMap = new Map()
+            nearbyPartners.forEach(p => {
+              nearbyMap.set(p.id, p.distance_meters)
+            })
+            setNearbyPartnerIds(nearbyMap)
+            setIsNearbyFilterActive(true)
+          } catch (err) {
+            setNearbyError('Không thể tìm kiếm các studio lân cận.')
+          } finally {
+            setNearbyLoading(false)
+          }
+        },
+        (err) => {
+          setNearbyError(
+            err.code === 1
+              ? 'Vui lòng cấp quyền truy cập vị trí trong cài đặt trình duyệt.'
+              : 'Không thể định vị vị trí hiện tại của bạn.'
+          )
+          setNearbyLoading(false)
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      )
+    } else {
+      setNearbyError('Trình duyệt không hỗ trợ định vị GPS.')
+    }
+  }
+
   const footerHighlights = [
     'Đối tác được xét duyệt kỹ trước khi xuất hiện trên Matcha',
     'Lịch trống cập nhật hằng ngày theo nhu cầu đặt lịch',
     'Tư vấn nhanh để ghép đúng studio, makeup và concept',
   ]
 
-  const filteredServiceItems = serviceItems.filter((service) => {
+  const baseFilteredItems = serviceItems.filter((service) => {
     const activeFilter = normalizeText(activeTag)
     const isAllFilter = activeTag === filterTags[0]
     const matchesTag =
@@ -158,8 +213,19 @@ function Homepage() {
     const query = normalizeText(catalogSearchTerm)
     const matchesSearch = !query || service.searchableText.includes(query)
 
-    return matchesTag && matchesSearch
+    // Lọc theo vị trí lân cận nếu filter active
+    const matchesNearby = !isNearbyFilterActive || (service.partnerId && nearbyPartnerIds.has(service.partnerId))
+
+    return matchesTag && matchesSearch && matchesNearby
   })
+
+  const filteredServiceItems = isNearbyFilterActive
+    ? [...baseFilteredItems].sort((a, b) => {
+        const distA = nearbyPartnerIds.get(a.partnerId) ?? 9999999
+        const distB = nearbyPartnerIds.get(b.partnerId) ?? 9999999
+        return distA - distB
+      })
+    : baseFilteredItems
 
   const handleCatalogSearch = (event) => {
     event.preventDefault()
@@ -234,7 +300,7 @@ function Homepage() {
             </div>
           </div>
 
-          <div className="chips">
+          <div className="chips" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             {filterTags.map((tag) => (
               <button
                 key={tag}
@@ -245,7 +311,30 @@ function Homepage() {
                 {tag}
               </button>
             ))}
+            <button
+              className={`chip ${isNearbyFilterActive ? 'chip-active' : ''}`}
+              type="button"
+              onClick={handleNearbyToggle}
+              disabled={nearbyLoading}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                borderColor: isNearbyFilterActive ? '#1f1713' : '#ded2c3',
+                background: isNearbyFilterActive ? '#1f1713' : 'transparent',
+                color: isNearbyFilterActive ? '#fff' : '#1f1713',
+                marginLeft: 'auto',
+              }}
+            >
+              {nearbyLoading ? '⏳ Đang định vị...' : '📍 Gần tôi'}
+            </button>
           </div>
+
+          {nearbyError && (
+            <div className="api-error" style={{ marginBottom: 16 }}>
+              <span>⚠ {nearbyError}</span>
+            </div>
+          )}
 
           <form className="catalog-search-bar" onSubmit={handleCatalogSearch}>
             <div className="catalog-search-input">
@@ -313,7 +402,14 @@ function Homepage() {
 
                       <div className="card-owner-row">
                         <div>
-                          <p className="card-location">📍 {service.location}</p>
+                          <p className="card-location">
+                            📍 {service.location}
+                            {isNearbyFilterActive && service.partnerId && nearbyPartnerIds.has(service.partnerId) && (
+                              <span style={{ marginLeft: 6, color: '#1bc48f', fontWeight: 800 }}>
+                                ({formatDistance(nearbyPartnerIds.get(service.partnerId))})
+                              </span>
+                            )}
+                          </p>
                         </div>
                       </div>
 
