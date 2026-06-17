@@ -3,6 +3,7 @@ import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
 import { getPartnerConcept, getPartner, getFeedbacks, addCartItem, clearCart, checkoutCart, validatePromoCode, getPromotions, createPaymentUrl, getPayment, closePaymentQr, getPartnerCalendar } from '../../utils/api.js'
 import { getAuthUser } from '../../utils/auth.js'
+import { extractCityOrProvince } from '../../utils/helpers.js'
 import './service_detail.css'
 
 const tabs = [
@@ -573,7 +574,7 @@ function ServiceDetail({ partnerConceptId }) {
   const partnerName = partner?.band_name ?? partnerConcept?.partner?.band_name ?? 'Matcha Studio'
   const description = partner?.description ?? partnerConcept?.concept?.description ?? ''
   const tagline = partnerConcept?.concept?.description ?? `Dịch vụ ${conceptName} chuyên nghiệp`
-  const locationName = partner?.location_name ?? 'Việt Nam'
+  const locationName = extractCityOrProvince(partner?.location_name)
   const ratingAvg = partner?.rating_avg > 0 ? Number(partner.rating_avg).toFixed(1) : null
   const ratingCount = partner?.rating_count ?? 0
 

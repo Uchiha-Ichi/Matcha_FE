@@ -3,6 +3,7 @@ import './homepage.css'
 import Footer from '../../components/Footer.jsx'
 import Header from '../../components/Header.jsx'
 import { getPartnerConcepts, getPartners, getConcepts, getCategories, searchPartnersNearby } from '../../utils/api.js'
+import { extractCityOrProvince } from '../../utils/helpers.js'
 
 const imageFallbacks = [
   'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=80',
@@ -105,7 +106,7 @@ function Homepage() {
             id: pc.id,
             title,
             studioName: partner?.band_name ?? 'Matcha Studio',
-            location: partner?.location_name ?? 'Việt Nam',
+            location: extractCityOrProvince(partner?.location_name),
             duration: pc.time ?? '—',
             price: pc.price,
             image,

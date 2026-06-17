@@ -85,7 +85,13 @@ export default function LocationSearch({ value, onChange, placeholder = 'Tìm đ
           const data = await res.json()
 
           const parts = data.display_name.split(', ')
-          const shortName = parts.slice(0, 4).join(', ')
+          const filtered = parts.filter(p => p.toLowerCase() !== 'việt nam' && !/^\d{5,6}$/.test(p))
+          let shortName = filtered.join(', ')
+          if (filtered.length > 5) {
+            const start = filtered.slice(0, 3)
+            const end = filtered.slice(-2)
+            shortName = [...start, ...end].join(', ')
+          }
           const gps = `POINT(${longitude} ${latitude})`
 
           setQuery(shortName)
@@ -119,10 +125,14 @@ export default function LocationSearch({ value, onChange, placeholder = 'Tìm đ
   }
 
   const handleSelect = (item) => {
-    // Rút gọn display name: bỏ phần quốc gia ở cuối
     const parts = item.display_name.split(', ')
-    // Giữ tối đa 4 phần đầu (tên đường, phường, quận, thành phố)
-    const shortName = parts.slice(0, 4).join(', ')
+    const filtered = parts.filter(p => p.toLowerCase() !== 'việt nam' && !/^\d{5,6}$/.test(p))
+    let shortName = filtered.join(', ')
+    if (filtered.length > 5) {
+      const start = filtered.slice(0, 3)
+      const end = filtered.slice(-2)
+      shortName = [...start, ...end].join(', ')
+    }
     const gps = `POINT(${item.lon} ${item.lat})`
     setQuery(shortName)
     setResults([])
