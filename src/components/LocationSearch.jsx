@@ -66,6 +66,51 @@ export default function LocationSearch({ value, onChange, placeholder = 'Tìm đ
     }
   }, [])
 
+  const locate = useCallback(async () => {
+    if (!navigator.geolocation) {
+      setError('Trình duyệt không hỗ trợ định vị GPS.')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=vi`,
+            { headers: { 'User-Agent': 'Matcha-App/1.0' } }
+          )
+          if (!res.ok) throw new Error('Không thể giải mã tọa độ thành địa chỉ')
+          const data = await res.json()
+          
+          const parts = data.display_name.split(', ')
+          const shortName = parts.slice(0, 4).join(', ')
+          const gps = `POINT(${longitude} ${latitude})`
+          
+          setQuery(shortName)
+          onChange?.(shortName, gps)
+        } catch (err) {
+          const shortName = `Vị trí định vị (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`
+          const gps = `POINT(${longitude} ${latitude})`
+          setQuery(shortName)
+          onChange?.(shortName, gps)
+        } finally {
+          setLoading(false)
+        }
+      },
+      (err) => {
+        setError(
+          err.code === 1
+            ? 'Cần cấp quyền vị trí trong trình duyệt để định vị.'
+            : 'Không thể lấy vị trí hiện tại.'
+        )
+        setLoading(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }, [onChange])
+
   const handleInput = (e) => {
     const val = e.target.value
     setQuery(val)
@@ -134,7 +179,7 @@ export default function LocationSearch({ value, onChange, placeholder = 'Tìm đ
             transition: 'border-color 0.18s, box-shadow 0.18s, background-color 0.18s',
           }}
         />
-        {loading && (
+        {loading ? (
           <span style={{
             position: 'absolute', right: 14, top: '50%',
             width: 16, height: 16, border: '2px solid #c8b8a8',
@@ -142,6 +187,29 @@ export default function LocationSearch({ value, onChange, placeholder = 'Tìm đ
             display: 'inline-block', animation: 'location-search-spin 0.8s linear infinite',
             zIndex: 2,
           }} />
+        ) : (
+          <button
+            type="button"
+            onClick={locate}
+            title="Định vị vị trí hiện tại"
+            style={{
+              position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              fontSize: 16, color: '#9b8a7b', padding: '4px', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', transition: 'color 0.15s, transform 0.15s',
+              zIndex: 2,
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.color = '#1f1713'
+              e.currentTarget.style.transform = 'translateY(-50%) scale(1.15)'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.color = '#9b8a7b'
+              e.currentTarget.style.transform = 'translateY(-50%) scale(1)'
+            }}
+          >
+            🎯
+          </button>
         )}
       </div>
 

@@ -60,8 +60,6 @@ function PartnerSetup() {
   const fileInputRef = useRef(null)
 
   // GPS state
-  const [gpsStatus, setGpsStatus] = useState(null) // null | 'loading' | 'success' | 'error'
-  const [gpsError, setGpsError] = useState(null)
   const [locationGps, setLocationGps] = useState(null) // "POINT(lng lat)" hoặc null
 
   // Form state
@@ -157,31 +155,7 @@ function PartnerSetup() {
     reader.readAsDataURL(file)
   }
 
-  const handleGetLocation = () => {
-    if (!navigator.geolocation) {
-      setGpsStatus('error')
-      setGpsError('Trình duyệt không hỗ trợ định vị GPS.')
-      return
-    }
-    setGpsStatus('loading')
-    setGpsError(null)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords
-        setLocationGps(`POINT(${longitude} ${latitude})`)
-        setGpsStatus('success')
-      },
-      (err) => {
-        setGpsStatus('error')
-        setGpsError(
-          err.code === 1
-            ? 'Bạn đã từ chối cấp quyền vị trí. Vui lòng bật trong cài đặt trình duyệt.'
-            : 'Không lấy được vị trí, vui lòng thử lại.'
-        )
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    )
-  }
+
 
   const handleSubmit = async () => {
     if (!authUser?.id) return

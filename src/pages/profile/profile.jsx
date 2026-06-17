@@ -273,45 +273,6 @@ function Profile() {
     }
   }
 
-  const handleUpdateGps = () => {
-    if (!navigator.geolocation) {
-      setGpsStatus('error')
-      setGpsError('Trình duyệt không hỗ trợ định vị GPS.')
-      return
-    }
-    if (!partnerProfile?.id) {
-      setGpsStatus('error')
-      setGpsError('Không tìm thấy hồ sơ partner.')
-      return
-    }
-    setGpsStatus('loading')
-    setGpsError(null)
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords
-        const newGps = `POINT(${longitude} ${latitude})`
-        try {
-          await updatePartner(partnerProfile.id, { location_gps: newGps })
-          setCurrentGps(newGps)
-          setGpsStatus('success')
-          setTimeout(() => setGpsStatus(null), 4000)
-        } catch (err) {
-          setGpsStatus('error')
-          setGpsError('Cập nhật thất bại: ' + err.message)
-        }
-      },
-      (err) => {
-        setGpsStatus('error')
-        setGpsError(
-          err.code === 1
-            ? 'Bạn đã từ chối cấp quyền vị trí. Vui lòng bật trong cài đặt trình duyệt.'
-            : 'Không lấy được vị trí, vui lòng thử lại.'
-        )
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    )
-  }
-
   const handleAvatarFileChange = async (event) => {
     const file = event.target.files?.[0]
     event.target.value = ''
