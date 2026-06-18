@@ -371,16 +371,23 @@
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 430px) {
   .top-nav {
     align-items: flex-start;
     flex-direction: column;
+    gap: 10px;
   }
 
   .menu-icons {
     width: 100%;
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 380px) {
+  .brand-text {
+    font-size: 18px;
   }
 
   .footer-links {

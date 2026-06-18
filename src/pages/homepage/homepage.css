@@ -639,7 +639,7 @@
 @media (max-width: 560px) {
   .hero-section {
     border-radius: 0;
-    min-height: 360px;
+    min-height: max(760px, 100svh);
   }
 
   .services-section {
@@ -651,14 +651,18 @@
   }
 
   .hero-content {
-    padding-top: 92px;
+    justify-content: flex-start;
+    padding: 108px 14px 34px;
   }
 
   .hero-content h1 {
-    font-size: 34px;
+    max-width: 100%;
+    font-size: 36px;
+    line-height: 0.98;
   }
 
   .hero-content p {
+    max-width: 100%;
     font-size: 14px;
     line-height: 1.5;
   }
@@ -672,6 +676,9 @@
 
   .search-box {
     width: 100%;
+    margin-top: 26px;
+    border-radius: 26px;
+    padding: 12px;
   }
 
   .catalog-search-bar {
@@ -694,5 +701,24 @@
 
   .cards-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .hero-section {
+    min-height: max(800px, 100svh);
+  }
+
+  .hero-content {
+    padding-top: 126px;
+  }
+
+  .hero-content h1 {
+    font-size: 32px;
+  }
+
+  .search-field {
+    padding: 0 14px;
+    gap: 10px;
   }
 }
