@@ -9,6 +9,7 @@
   background: #f7f2ea;
   color: #1f1b17;
   font-family: var(--profile-font);
+  overflow-x: hidden;
 }
 
 .profile-page button,
@@ -472,6 +473,35 @@
   .profile-section__heading button {
     width: 100%;
   }
+
+  .profile-layout {
+    padding-top: 28px;
+    padding-bottom: 42px;
+  }
+
+  .profile-card,
+  .profile-stats,
+  .profile-section {
+    border-radius: 22px;
+  }
+
+  .profile-section {
+    padding: 20px;
+  }
+
+  .profile-mini-panel dl div {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .profile-mini-panel dd {
+    text-align: left;
+  }
+
+  .profile-concepts button,
+  .profile-security a {
+    width: 100%;
+  }
 }
 
 /* ── Skeleton ────────────────────────────────────────────────── */
@@ -492,6 +522,7 @@
   animation: profile-shimmer 1.5s infinite linear;
   border-radius: 8px;
   display: inline-block;
+  max-width: 100%;
 }
 
 .profile-skeleton-avatar {

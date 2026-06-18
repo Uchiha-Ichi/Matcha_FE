@@ -107,3 +107,23 @@
     flex-direction: column;
   }
 }
+
+@media (max-width: 560px) {
+  .partner-date-form,
+  .partner-date-list article {
+    border-radius: 20px;
+  }
+
+  .partner-date-form {
+    padding: 18px;
+  }
+
+  .partner-date-list article {
+    padding: 16px;
+  }
+
+  .partner-date-form button,
+  .partner-date-list button {
+    width: 100%;
+  }
+}

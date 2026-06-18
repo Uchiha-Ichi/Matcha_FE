@@ -224,3 +224,34 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 640px) {
+  .partner-service-config-form,
+  .partner-service-image-manager {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .ps-image-manager-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .ps-upload-image-label,
+  .ps-back-btn,
+  .partner-service-config-form button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .ps-images-gallery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  .ps-action-btn-primary,
+  .ps-action-btn-delete {
+    width: 100%;
+  }
+}

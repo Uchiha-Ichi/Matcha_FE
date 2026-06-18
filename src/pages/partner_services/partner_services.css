@@ -123,6 +123,41 @@
   }
 }
 
+@media (max-width: 560px) {
+  .partner-service-manage-card,
+  .partner-service-form {
+    border-radius: 20px;
+  }
+
+  .partner-service-manage-card {
+    padding: 16px;
+  }
+
+  .partner-service-form {
+    padding: 18px;
+  }
+
+  .partner-service-manage-card div {
+    flex-direction: column;
+  }
+
+  .partner-service-manage-card button,
+  .partner-service-form button {
+    width: 100%;
+  }
+
+  .partner-service-images {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .partner-service-img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+}
+
 /* ── Service card images & spinner ── */
 .partner-service-images {
   display: flex;

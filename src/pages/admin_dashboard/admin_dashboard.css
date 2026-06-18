@@ -5,6 +5,7 @@
   background: #f4f1ec;
   color: #191411;
   font-family: 'Manrope', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  overflow-x: hidden;
 }
 
 .admin-dashboard-page button,
@@ -109,6 +110,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .admin-actions a,
@@ -414,12 +416,47 @@
 }
 
 @media (max-width: 560px) {
+  .admin-header {
+    grid-template-columns: 1fr;
+  }
+
   .admin-brand div {
     display: none;
   }
 
   .admin-actions {
+    width: 100%;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: flex-start;
+  }
+
+  .admin-actions a,
+  .admin-actions button {
+    flex: 1 1 auto;
+  }
+
+  .admin-shell {
+    padding: 26px 14px 46px;
+  }
+
+  .admin-panel {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .admin-panel__heading button,
+  .admin-booking-list button {
+    width: 100%;
+  }
+
+  .admin-user-list article,
+  .admin-partner-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-user-list img,
+  .admin-partner-list img {
+    width: 58px;
+    height: 58px;
   }
 }

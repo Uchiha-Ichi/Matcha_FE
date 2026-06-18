@@ -15,6 +15,7 @@
   align-items: center;
   justify-content: center;
   animation: matchaFadeIn 0.3s ease-out forwards;
+  padding: 24px;
 }
 
 .matcha-loading-container {
@@ -23,6 +24,7 @@
   align-items: center;
   gap: 24px;
   text-align: center;
+  max-width: min(100%, 320px);
 }
 
 .matcha-loading-spinner-wrap {
@@ -75,6 +77,34 @@
   margin: 0;
   text-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   animation: matchaTextPulse 1.5s infinite ease-in-out;
+}
+
+@media (max-width: 520px) {
+  .matcha-loading-container {
+    gap: 18px;
+  }
+
+  .matcha-loading-spinner-wrap {
+    width: 64px;
+    height: 64px;
+  }
+
+  .matcha-loading-ring {
+    top: 7px;
+    left: 7px;
+    right: 7px;
+    bottom: 7px;
+  }
+
+  .matcha-loading-icon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .matcha-loading-text {
+    font-size: 14px;
+    line-height: 1.4;
+  }
 }
 
 @keyframes matchaFadeIn {

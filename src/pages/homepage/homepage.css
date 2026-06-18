@@ -120,6 +120,7 @@
 }
 
 .search-box input {
+  min-width: 0;
   width: 100%;
   border: none;
   background: transparent;
@@ -611,7 +612,15 @@
     padding: 14px;
   }
 
-  .search-primary-row,
+  .search-primary-row {
+    grid-template-columns: 1fr;
+  }
+
+  .search-upload-btn,
+  .search-submit-btn {
+    width: 100%;
+    justify-content: center;
+  }
 
   .cards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -659,6 +668,19 @@
   .search-submit-btn {
     min-height: 60px;
     border-radius: 18px;
+  }
+
+  .search-box {
+    width: 100%;
+  }
+
+  .catalog-search-bar {
+    padding: 10px;
+  }
+
+  .catalog-search-input {
+    min-height: 54px;
+    padding: 0 14px;
   }
 
   .search-filter-btn {

@@ -130,6 +130,37 @@
   }
 }
 
+@media (max-width: 560px) {
+  .partner-workspace {
+    padding: 26px 14px 46px;
+  }
+
+  .partner-workspace__heading button,
+  .partner-booking-row__actions,
+  .partner-booking-row__actions button,
+  .partner-booking-row__actions a {
+    width: 100%;
+  }
+
+  .partner-booking-row {
+    grid-template-columns: 1fr;
+    border-radius: 20px;
+  }
+
+  .partner-booking-row > img {
+    width: 64px;
+    height: 64px;
+  }
+
+  .partner-booking-result-link-input-group {
+    flex-direction: column;
+  }
+
+  .partner-booking-result-link-input-group button {
+    min-height: 42px;
+  }
+}
+
 .partner-booking-card {
   padding: 16px;
   border: 1px solid #ddd1c4;

@@ -10,6 +10,7 @@
   padding: 0 42px;
   z-index: 5;
   background: linear-gradient(180deg, rgba(7, 13, 19, 0.34), rgba(7, 13, 19, 0));
+  min-width: 0;
 }
 
 .brand {
@@ -17,6 +18,8 @@
   align-items: center;
   gap: 10px;
   text-decoration: none;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .brand-camera {
@@ -42,11 +45,13 @@
   letter-spacing: -0.03em;
   color: #ffffff;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .menu-links {
   display: flex;
   gap: 42px;
+  min-width: 0;
 }
 
 .menu-links a {
@@ -56,6 +61,7 @@
   line-height: 1.2;
   font-weight: 700;
   letter-spacing: -0.02em;
+  white-space: nowrap;
   transition:
     opacity 0.2s ease,
     color 0.2s ease,
@@ -75,6 +81,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 0 0 auto;
 }
 
 .nav-icon-btn {
@@ -175,6 +183,7 @@
   text-decoration: none;
   font-size: 14px;
   font-weight: 800;
+  white-space: nowrap;
   transition:
     transform 0.2s ease,
     border-color 0.2s ease,
@@ -220,6 +229,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 14px 22px;
+  min-width: 0;
 }
 
 .footer-links a {
@@ -261,6 +271,7 @@
   .top-nav {
     height: 74px;
     padding: 0 16px;
+    gap: 12px;
   }
 
   .brand {
@@ -292,15 +303,87 @@
   .nav-icon-btn {
     width: 38px;
     height: 38px;
+    flex: 0 0 38px;
+  }
+
+  .nav-login-link {
+    min-height: 38px;
+    padding: 0 12px;
+    font-size: 13px;
   }
 }
 
 @media (max-width: 720px) {
+  .home-footer {
+    padding: 30px 18px 38px;
+  }
+
   .home-footer__grid {
     grid-template-columns: 1fr;
+    gap: 24px;
   }
 
   .footer-contact {
     text-align: left;
+  }
+
+  .footer-links {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  .top-nav {
+    height: auto;
+    min-height: 68px;
+    padding: 12px 14px;
+  }
+
+  .brand-camera {
+    width: 34px;
+    height: 34px;
+  }
+
+  .brand-text {
+    font-size: 19px;
+  }
+
+  .menu-icons {
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .nav-icon-btn {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .nav-icon-btn svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .nav-login-link {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .top-nav {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .menu-icons {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .footer-links {
+    flex-direction: column;
   }
 }

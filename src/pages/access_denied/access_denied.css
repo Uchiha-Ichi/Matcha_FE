@@ -172,3 +172,35 @@
     opacity: 0.6;
   }
 }
+
+@media (max-width: 560px) {
+  .access-denied-page {
+    align-items: flex-start;
+    min-height: 100svh;
+    padding: 20px 14px;
+  }
+
+  .access-denied-card {
+    padding: 34px 20px;
+    border-radius: 20px;
+  }
+
+  .access-denied-icon-wrap {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 24px;
+  }
+
+  .access-denied-title {
+    font-size: 24px;
+  }
+
+  .access-denied-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .access-denied-btn {
+    width: 100%;
+  }
+}

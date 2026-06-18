@@ -9,3 +9,36 @@ body,
   width: 100%;
   min-height: 100vh;
 }
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+a,
+span,
+strong,
+dd {
+  overflow-wrap: anywhere;
+}

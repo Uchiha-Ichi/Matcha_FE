@@ -955,9 +955,40 @@
 }
 
 @media (max-width: 480px) {
+  .ps-body {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
   .ps-hero__content h1 {
     font-size: 34px;
   }
+
+  .ps-form-card,
+  .ps-tips,
+  .ps-sidebar__steps,
+  .ps-done__card {
+    border-radius: 20px;
+  }
+
+  .ps-field__footer,
+  .ps-sidebar__existing,
+  .ps-preview-card__dl div {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .ps-preview-card__dl dt {
+    width: auto;
+  }
+
+  .ps-btn--submit,
+  .ps-done__primary,
+  .ps-done__secondary {
+    min-width: 0;
+    width: 100%;
+  }
+
   .ps-steps__item {
     flex-direction: column;
     align-items: center;
