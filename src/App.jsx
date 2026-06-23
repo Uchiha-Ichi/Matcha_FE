@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 import AboutMatcha from './pages/about_matcha/about_matcha.jsx'
 import AdminDashboard from './pages/admin_dashboard/admin_dashboard.jsx'
 import AiIdeaResult from './pages/ai_idea_result/ai_idea_result.jsx'
@@ -55,109 +56,304 @@ function App() {
   const userRole = authUser?.role
 
   if (route === '/about-matcha') {
-    return <AboutMatcha />
+    return (
+      <>
+        <AboutMatcha />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/terms-of-service') {
-    return <InfoPage type="terms" />
+    return (
+      <>
+        <InfoPage type="terms" />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/privacy-policy') {
-    return <InfoPage type="privacy" />
+    return (
+      <>
+        <InfoPage type="privacy" />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/photo-process') {
-    return <InfoPage type="process" />
+    return (
+      <>
+        <InfoPage type="process" />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/login') {
-    return <Login />
+    return (
+      <>
+        <Login />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/forgot-password') {
-    return <ForgotPassword />
+    return (
+      <>
+        <ForgotPassword />
+        <Analytics />
+      </>
+    )
   }
 
   const serviceDetailParam = extractServiceDetailSlugOrId(route)
   if (serviceDetailParam !== null) {
-    return <ServiceDetail partnerConceptId={serviceDetailParam} />
+    return (
+      <>
+        <ServiceDetail partnerConceptId={serviceDetailParam} />
+        <Analytics />
+      </>
+    )
   }
   if (route === '/service-detail') {
-    return <ServiceDetail />
+    return (
+      <>
+        <ServiceDetail />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/cart') {
-    return <Cart />
+    return (
+      <>
+        <Cart />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/ai-idea') {
-    return <AiIdeaResult />
+    return (
+      <>
+        <AiIdeaResult />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/chat') {
-    if (!isLoggedIn) return <Login closeHref="/chat" />
-    return <Chat />
+    if (!isLoggedIn) return (
+      <>
+        <Login closeHref="/chat" />
+        <Analytics />
+      </>
+    )
+    return (
+      <>
+        <Chat />
+        <Analytics />
+      </>
+    )
   }
 
   const bookingId = extractBookingId(route)
   if (bookingId !== null) {
-    if (!isLoggedIn) return <Login closeHref={`/bookings/${bookingId}`} />
-    return <OrderHistory bookingId={bookingId} />
+    if (!isLoggedIn) return (
+      <>
+        <Login closeHref={`/bookings/${bookingId}`} />
+        <Analytics />
+      </>
+    )
+    return (
+      <>
+        <OrderHistory bookingId={bookingId} />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/order-history') {
-    if (!isLoggedIn) return <Login closeHref="/order-history" />
-    return <OrderHistory />
+    if (!isLoggedIn) return (
+      <>
+        <Login closeHref="/order-history" />
+        <Analytics />
+      </>
+    )
+    return (
+      <>
+        <OrderHistory />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/profile') {
-    if (!isLoggedIn) return <Login closeHref="/profile" />
-    return <Profile />
+    if (!isLoggedIn) return (
+      <>
+        <Login closeHref="/profile" />
+        <Analytics />
+      </>
+    )
+    return (
+      <>
+        <Profile />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/partner-setup') {
-    if (!isLoggedIn) return <Login closeHref="/partner-setup" />
-    return <PartnerSetup />
+    if (!isLoggedIn) return (
+      <>
+        <Login closeHref="/partner-setup" />
+        <Analytics />
+      </>
+    )
+    return (
+      <>
+        <PartnerSetup />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/partner-dashboard') {
-    if (!isLoggedIn) return <Login closeHref="/partner-dashboard" />
-    if (userRole !== 'Partner') return <AccessDenied requiredRole="Đối tác (Partner)" />
-    return <PartnerDashboard />
+    if (!isLoggedIn) return (
+      <>
+        <Login closeHref="/partner-dashboard" />
+        <Analytics />
+      </>
+    )
+    if (userRole !== 'Partner') return (
+      <>
+        <AccessDenied requiredRole="Đối tác (Partner)" />
+        <Analytics />
+      </>
+    )
+    return (
+      <>
+        <PartnerDashboard />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/partner-bookings') {
-    if (!isLoggedIn) return <Login closeHref="/partner-bookings" />
-    if (userRole !== 'Partner') return <AccessDenied requiredRole="Đối tác (Partner)" />
-    return <PartnerBookings />
+    if (!isLoggedIn) return (
+      <>
+        <Login closeHref="/partner-bookings" />
+        <Analytics />
+      </>
+    )
+    if (userRole !== 'Partner') return (
+      <>
+        <AccessDenied requiredRole="Đối tác (Partner)" />
+        <Analytics />
+      </>
+    )
+    return (
+      <>
+        <PartnerBookings />
+        <Analytics />
+      </>
+    )
   }
 
   const partnerServiceDetailId = extractPartnerServiceDetailId(route)
   if (partnerServiceDetailId !== null) {
-    if (!isLoggedIn) return <Login closeHref={`/partner-services/${partnerServiceDetailId}`} />
-    if (userRole !== 'Partner') return <AccessDenied requiredRole="Đối tác (Partner)" />
-    return <PartnerServiceDetail partnerConceptId={partnerServiceDetailId} />
+    if (!isLoggedIn) return (
+      <>
+        <Login closeHref={`/partner-services/${partnerServiceDetailId}`} />
+        <Analytics />
+      </>
+    )
+    if (userRole !== 'Partner') return (
+      <>
+        <AccessDenied requiredRole="Đối tác (Partner)" />
+        <Analytics />
+      </>
+    )
+    return (
+      <>
+        <PartnerServiceDetail partnerConceptId={partnerServiceDetailId} />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/partner-services') {
-    if (!isLoggedIn) return <Login closeHref="/partner-services" />
-    if (userRole !== 'Partner') return <AccessDenied requiredRole="Đối tác (Partner)" />
-    return <PartnerServices />
+    if (!isLoggedIn) return (
+      <>
+        <Login closeHref="/partner-services" />
+        <Analytics />
+      </>
+    )
+    if (userRole !== 'Partner') return (
+      <>
+        <AccessDenied requiredRole="Đối tác (Partner)" />
+        <Analytics />
+      </>
+    )
+    return (
+      <>
+        <PartnerServices />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/partner-schedule') {
-    if (!isLoggedIn) return <Login closeHref="/partner-schedule" />
-    if (userRole !== 'Partner') return <AccessDenied requiredRole="Đối tác (Partner)" />
-    return <PartnerSchedule />
+    if (!isLoggedIn) return (
+      <>
+        <Login closeHref="/partner-schedule" />
+        <Analytics />
+      </>
+    )
+    if (userRole !== 'Partner') return (
+      <>
+        <AccessDenied requiredRole="Đối tác (Partner)" />
+        <Analytics />
+      </>
+    )
+    return (
+      <>
+        <PartnerSchedule />
+        <Analytics />
+      </>
+    )
   }
 
   if (route === '/admin-dashboard') {
-    if (!isLoggedIn) return <Login closeHref="/admin-dashboard" />
-    if (userRole !== 'Admin') return <AccessDenied requiredRole="Quản trị viên (Admin)" />
-    return <AdminDashboard />
+    if (!isLoggedIn) return (
+      <>
+        <Login closeHref="/admin-dashboard" />
+        <Analytics />
+      </>
+    )
+    if (userRole !== 'Admin') return (
+      <>
+        <AccessDenied requiredRole="Quản trị viên (Admin)" />
+        <Analytics />
+      </>
+    )
+    return (
+      <>
+        <AdminDashboard />
+        <Analytics />
+      </>
+    )
   }
 
-  return <Homepage />
+  return (
+    <>
+      <Homepage />
+      <Analytics />
+    </>
+  )
 }
 
 export default App
