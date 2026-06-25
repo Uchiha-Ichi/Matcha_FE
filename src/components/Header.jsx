@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { clearAuthUser, getAuthUser, subscribeAuthChange } from '../utils/auth.js'
 import { getCart, getChatUnreadCount, signOut } from '../utils/api.js'
-import matchaLogo from '../assets/matcha-logo.svg'
+import matchaLogo from '../assets/matcha-logo-white.png'
 import './layout.css'
 
 const getCurrentRoute = () => window.location.pathname || '/'
