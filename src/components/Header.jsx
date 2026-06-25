@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { clearAuthUser, getAuthUser, subscribeAuthChange } from '../utils/auth.js'
 import { getCart, getChatUnreadCount, signOut } from '../utils/api.js'
+import matchaLogo from '../assets/matcha-logo.svg'
 import './layout.css'
 
 const getCurrentRoute = () => window.location.pathname || '/'
@@ -101,19 +102,7 @@ function Header() {
         aria-label="Trang chủ Matcha"
         onClick={(event) => navigate(event, '/')}
       >
-        <span className="brand-camera" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none">
-            <path
-              d="M9 6.5 10.2 5h3.6L15 6.5h2.3A1.7 1.7 0 0 1 19 8.2v7.1a1.7 1.7 0 0 1-1.7 1.7H6.7A1.7 1.7 0 0 1 5 15.3V8.2a1.7 1.7 0 0 1 1.7-1.7H9Z"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <circle cx="12" cy="11.8" r="2.5" stroke="currentColor" strokeWidth="1.8" />
-          </svg>
-        </span>
-        <span className="brand-text">MATCHA</span>
+        <img className="brand-logo" src={matchaLogo} alt="Matcha" />
       </a>
 
       <nav className="menu-links">

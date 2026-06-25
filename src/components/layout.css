@@ -38,6 +38,16 @@
   height: 19px;
 }
 
+.brand-logo {
+  width: 126px;
+  height: auto;
+  display: block;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 5px 9px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+}
+
 .brand-text {
   font-size: 26px;
   line-height: 1;
@@ -265,6 +275,10 @@
     width: 40px;
     height: 40px;
   }
+
+  .brand-logo {
+    width: 138px;
+  }
 }
 
 @media (max-width: 840px) {
@@ -286,6 +300,12 @@
   .brand-camera svg {
     width: 16px;
     height: 16px;
+  }
+
+  .brand-logo {
+    width: 106px;
+    border-radius: 10px;
+    padding: 4px 8px;
   }
 
   .brand-text {
@@ -342,6 +362,11 @@
   .brand-camera {
     width: 34px;
     height: 34px;
+  }
+
+  .brand-logo {
+    width: 94px;
+    padding: 4px 7px;
   }
 
   .brand-text {

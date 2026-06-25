@@ -32,7 +32,7 @@ function Footer() {
         <section className="footer-section footer-contact">
           <h3>Liên hệ</h3>
           <p>(+84) 94 7172 004</p>
-          <p>matchafpt@gmail.com</p>
+          <p>matcha.photographer@gmail.com</p>
         </section>
       </div>
     </footer>
