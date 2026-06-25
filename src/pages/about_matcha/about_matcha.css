@@ -25,6 +25,10 @@
   color: #2f2a25;
 }
 
+.about-matcha-page .brand-logo {
+  filter: brightness(0) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.12));
+}
+
 .about-matcha-page .nav-icon-btn {
   background: rgba(255, 255, 255, 0.75);
   border-color: rgba(229, 215, 198, 0.9);

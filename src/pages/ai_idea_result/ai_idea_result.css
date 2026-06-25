@@ -69,6 +69,13 @@
   height: 17px;
 }
 
+.ai-idea-brand__logo {
+  width: 118px;
+  height: auto;
+  display: block;
+  filter: brightness(0) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.12));
+}
+
 .ai-idea-round-btn {
   background: #efe8df;
   text-decoration: none;
@@ -452,11 +459,15 @@
   .ai-moodboard img {
     aspect-ratio: 1.42;
   }
+
+  .ai-idea-brand__logo {
+    width: 104px;
+  }
 }
 
 @media (max-width: 480px) {
-  .ai-idea-brand span:last-child {
-    display: none;
+  .ai-idea-brand__logo {
+    width: 94px;
   }
 
   .ai-idea-card h1 {

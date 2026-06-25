@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { generateAiIdea } from '../../utils/api.js'
 import LoadingScreen from '../../components/LoadingScreen.jsx'
+import matchaLogo from '../../assets/matcha-logo-white.png'
 import './ai_idea_result.css'
 
 const moodboardSets = {
@@ -115,8 +116,7 @@ function AiIdeaResult() {
               href="/"
               onClick={(event) => navigate(event, '/')}
             >
-              <span className="ai-idea-brand__icon">✦</span>
-              <span>MATCHA</span>
+              <img className="ai-idea-brand__logo" src={matchaLogo} alt="Matcha" />
             </a>
           </div>
           <strong className="ai-idea-query">"{query}"</strong>
@@ -138,8 +138,7 @@ function AiIdeaResult() {
               href="/"
               onClick={(event) => navigate(event, '/')}
             >
-              <span className="ai-idea-brand__icon">✦</span>
-              <span>MATCHA</span>
+              <img className="ai-idea-brand__logo" src={matchaLogo} alt="Matcha" />
             </a>
           </div>
           <strong className="ai-idea-query">"{query}"</strong>
@@ -194,19 +193,7 @@ function AiIdeaResult() {
             aria-label="Trang chủ Matcha"
             onClick={(event) => navigate(event, '/')}
           >
-            <span className="ai-idea-brand__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M9 6.5 10.2 5h3.6L15 6.5h2.3A1.7 1.7 0 0 1 19 8.2v7.1a1.7 1.7 0 0 1-1.7 1.7H6.7A1.7 1.7 0 0 1 5 15.3V8.2a1.7 1.7 0 0 1 1.7-1.7H9Z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <circle cx="12" cy="11.8" r="2.5" stroke="currentColor" strokeWidth="1.8" />
-              </svg>
-            </span>
-            <span>MATCHA</span>
+            <img className="ai-idea-brand__logo" src={matchaLogo} alt="Matcha" />
           </a>
 
           <a
