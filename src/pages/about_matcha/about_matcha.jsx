@@ -1,6 +1,6 @@
 ﻿import Header from '../../components/Header.jsx'
 import Footer from '../../components/Footer.jsx'
-import matchaLogo from '../../assets/matcha-logo-white.png'
+import matchaLogo from '../../assets/matcha-logo.png'
 import './about_matcha.css'
 
 function AboutMatcha() {
