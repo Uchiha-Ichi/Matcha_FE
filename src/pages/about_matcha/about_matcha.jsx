@@ -1,5 +1,6 @@
 ﻿import Header from '../../components/Header.jsx'
 import Footer from '../../components/Footer.jsx'
+import matchaLogo from '../../assets/matcha-logo-white.png'
 import './about_matcha.css'
 
 function AboutMatcha() {
@@ -11,7 +12,9 @@ function AboutMatcha() {
         <div className="about-hero-grid">
           <div className="about-portrait-card">
             <div className="portrait-surface">
-              <div className="portrait-photo" />
+              <div className="portrait-photo about-logo-panel">
+                <img src={matchaLogo} alt="Matcha" />
+              </div>
             </div>
           </div>
 
@@ -55,7 +58,9 @@ function AboutMatcha() {
           </article>
 
           <div className="story-photo-card">
-            <div className="story-photo" />
+            <div className="story-photo about-logo-panel">
+              <img src={matchaLogo} alt="Matcha" />
+            </div>
           </div>
         </div>
       </section>

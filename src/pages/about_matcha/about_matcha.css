@@ -230,6 +230,28 @@
   transform: rotate(8deg);
 }
 
+.about-logo-panel {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #fff9f2, #ffe4c5);
+}
+
+.about-logo-panel::before,
+.about-logo-panel::after {
+  content: none;
+}
+
+.about-logo-panel img {
+  width: min(72%, 360px);
+  height: auto;
+  display: block;
+  filter: brightness(0) drop-shadow(0 10px 24px rgba(0, 0, 0, 0.14));
+}
+
+.story-photo.about-logo-panel {
+  min-height: 320px;
+}
+
 
 .category-card {
   padding: 14px;
@@ -333,6 +355,14 @@
 
   .portrait-photo {
     min-height: 320px;
+  }
+
+  .about-logo-panel img {
+    width: min(82%, 300px);
+  }
+
+  .story-photo.about-logo-panel {
+    min-height: 260px;
   }
 
   .about-quote p {
